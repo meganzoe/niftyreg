@@ -110,10 +110,19 @@ reg_discrete_init::~reg_discrete_init()
 /*****************************************************/
 void reg_discrete_init::GetDiscretisedMeasure()
 {
-   measure->GetDiscretisedValue(this->controlPointImage,
-                                this->discretised_measures,
-                                this->discrete_radius,
-                                this->discrete_increment);
+//   measure->GetDiscretisedValue(this->controlPointImage,
+//                                this->discretised_measures,
+//                                this->discrete_radius,
+//                                this->discrete_increment);
+
+   GetDiscretisedValue_LCCA(this->controlPointImage,
+                            this->discretised_measures,
+                            this->discrete_radius,
+                            this->discrete_increment,
+                            this->measure->GetReferenceImage(),
+                            this->measure->GetWarpedFloatingImage(),
+                            this->measure->GetReferenceMask());
+
 #ifndef NDEBUG
    reg_print_msg_debug("reg_discrete_init::GetDiscretisedMeasure done");
 #endif

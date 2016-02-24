@@ -214,6 +214,8 @@ install(FILES cpu/_reg_discrete_init.cpp cpu/_reg_discrete_init.h DESTINATION in
 ## BUILD THE DEV LIBRARY
 set(NAME _reg_dev)
 set(_reg_dev_files
+  cpu/_reg_lcca.h
+  cpu/_reg_lcca.cpp
   cpu/_reg_mrf.h
   cpu/_reg_mrf.cpp
   cpu/_reg_discrete_init.h

@@ -72,6 +72,10 @@ public:
    {
       return this->referenceImagePointer;
    }
+   nifti_image* GetWarpedFloatingImage(void)
+   {
+      return this->warpedFloatingImagePointer;
+   }
    int* GetReferenceMask(void)
    {
       return this->referenceMaskPointer;

@@ -354,3 +354,42 @@ mat44 reg_mat44_avg2(mat44 const* A, mat44 const* B)
     return reg_mat44_expm(&out);
 
 }
+/* *************************************************************** */
+void reg_matNN_inv(float const *in_mat, int dim, float *out_mat)
+{
+    Eigen::MatrixXd m, m_inv;
+    int index=0;
+    for (size_t i = 0; i < dim; ++i) {
+        for (size_t j = 0; j < dim; ++j) {
+            m(i, j) = static_cast<double>(in_mat[index]);
+            ++index;
+        }
+    }
+    m_inv = m.inverse();
+    index=0;
+    for (size_t i = 0; i < dim; ++i){
+        for (size_t j = 0; j < dim; ++j){
+            out_mat[index] = static_cast<float>(m_inv(i, j));
+            index++;
+        }
+    }
+    return;
+}
+/* *************************************************************** */
+void reg_matNN_inv(float** in_mat, int dim, float** out_mat)
+{
+    Eigen::MatrixXd m, m_inv;
+    for (size_t i = 0; i < dim; ++i) {
+        for (size_t j = 0; j < dim; ++j) {
+            m(i, j) = static_cast<double>(in_mat[i][j]);
+        }
+    }
+    m_inv = m.inverse();
+    for (size_t i = 0; i < dim; ++i){
+        for (size_t j = 0; j < dim; ++j){
+            out_mat[i][j] = static_cast<float>(m_inv(i, j));
+        }
+    }
+    return;
+}
+/* *************************************************************** */

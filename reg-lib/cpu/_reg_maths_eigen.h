@@ -29,6 +29,20 @@ T reg_matrix2DDet(T** mat, size_t m, size_t n);
 */
 mat44 reg_mat44_inv(mat44 const* mat);
 /* *************************************************************** */
+/** @brief Compute the inverse of a square matrix
+ * @param int_mat Input matrix stored as an 1D float array
+ * @param dim Input matrix dimension
+ * @param out_mat Output matrix stored as an 1D float array
+ */
+void reg_matNN_inv(float const * in_mat, int dim, float *out_mat);
+/* *************************************************************** */
+/** @brief Compute the inverse of a square 2D matrix
+ * @param int_mat Input matrix stored as an 2D float array
+ * @param dim Input matrix dimension
+ * @param out_mat Output matrix stored as an 2D float array
+ */
+void reg_matNN_inv(float ** in_mat, int dim, float** out_mat);
+/* *************************************************************** */
 /** @brief Compute the square root of a 4-by-4 matrix
 */
 mat44 reg_mat44_sqrt(mat44 const* mat);

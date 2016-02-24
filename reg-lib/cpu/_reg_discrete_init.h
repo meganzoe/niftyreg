@@ -17,6 +17,7 @@
 #include "_reg_measure.h"
 #include "_reg_optimiser.h"
 #include "_reg_localTrans_regul.h"
+#include "_reg_lcca.h"
 #include <cmath>
 #include <queue>
 #include <algorithm>
