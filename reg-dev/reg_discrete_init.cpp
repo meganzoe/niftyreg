@@ -43,7 +43,7 @@ int main(int argc, char **argv)
    reg_tools_changeDatatype<float>(floatingImage);
 
    // Create control point grid image
-   int spacing_voxel = 5;
+   int spacing_voxel = 10;
    float grid_step_mm[3]={spacing_voxel*referenceImage->dx,
                           spacing_voxel*referenceImage->dy,
                           spacing_voxel*referenceImage->dz};
@@ -108,7 +108,8 @@ int main(int argc, char **argv)
                      3,
                      0.f);
 
-   int mind_length = 6;
+   int mind_length = 12;
+   /*
    //MINDSSC image
    nifti_image *MINDSSC_refimg = nifti_copy_nim_info(referenceImage);
    MINDSSC_refimg->ndim = MINDSSC_refimg->dim[0] = 4;
@@ -116,7 +117,7 @@ int main(int argc, char **argv)
    MINDSSC_refimg->nvox = MINDSSC_refimg->nvox*mind_length;
    MINDSSC_refimg->data=(void *)calloc(MINDSSC_refimg->nvox,MINDSSC_refimg->nbyper);
    // Compute the MIND descriptor
-   GetMINDImageDesciptor(referenceImage,MINDSSC_refimg, mask);
+   GetMINDSSCImageDesciptor(referenceImage,MINDSSC_refimg, mask);
 
    //MINDSSC image
    nifti_image *MINDSSC_warimg = nifti_copy_nim_info(warpedImage);
@@ -125,7 +126,7 @@ int main(int argc, char **argv)
    MINDSSC_warimg->nvox = MINDSSC_warimg->nvox*mind_length;
    MINDSSC_warimg->data=(void *)calloc(MINDSSC_warimg->nvox,MINDSSC_warimg->nbyper);
    // Compute the MIND descriptor
-   GetMINDImageDesciptor(warpedImage,MINDSSC_warimg, mask);
+   GetMINDSSCImageDesciptor(warpedImage,MINDSSC_warimg, mask);
 
    reg_ssd* ssdMeasure = new reg_ssd();
 
@@ -137,14 +138,23 @@ int main(int argc, char **argv)
                                  MINDSSC_warimg,
                                  NULL,
                                  NULL);
+   */
+
+   reg_ssd* ssdMeasure = new reg_ssd();
+   ssdMeasure->InitialiseMeasure(referenceImage,
+                                 warpedImage,
+                                 mask,
+                                 warpedImage,
+                                 NULL,
+                                 NULL);
 
    std::cout << "INIT VALUE = " << ssdMeasure->GetSimilarityMeasureValue() << std::endl;
 
    reg_discrete_init* reg_dcObject = new reg_discrete_init(ssdMeasure,
                                                            referenceImage,
                                                            controlPointImage,
-                                                           18,
-                                                           3,
+                                                           4,
+                                                           1,
                                                            100,
                                                            regularisationWeight);
 
@@ -162,7 +172,7 @@ int main(int argc, char **argv)
                      mask,
                      3,
                      0.f);
-   GetMINDImageDesciptor(warpedImage,MINDSSC_warimg, mask);
+   //GetMINDImageDesciptor(warpedImage,MINDSSC_warimg, mask);
 
 
    std::cout << "FINAL VALUE = " << ssdMeasure->GetSimilarityMeasureValue() << std::endl;
@@ -186,8 +196,8 @@ int main(int argc, char **argv)
 
    delete reg_dcObject;
    free(mask);
-   nifti_image_free(MINDSSC_refimg);
-   nifti_image_free(MINDSSC_warimg);
+   //nifti_image_free(MINDSSC_refimg);
+   //nifti_image_free(MINDSSC_warimg);
    nifti_image_free(referenceImage);
    nifti_image_free(floatingImage);
    nifti_image_free(warpedImage);

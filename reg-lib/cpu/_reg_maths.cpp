@@ -233,6 +233,17 @@ template float** reg_matrix2DTranspose<float>(float** mat, size_t arraySizeX, si
 template double** reg_matrix2DTranspose<double>(double** mat, size_t arraySizeX, size_t arraySizeY);
 /* *************************************************************** */
 template<class T>
+void reg_matrix2DTranspose(T** mat, size_t arraySizeX, size_t arraySizeY, T** res) {
+    for (size_t i = 0; i < arraySizeX; i++) {
+        for (size_t j = 0; j < arraySizeY; j++) {
+            res[j][i] = mat[i][j];
+        }
+    }
+}
+template void reg_matrix2DTranspose<float>(float** mat, size_t arraySizeX, size_t arraySizeY, float** res);
+template void reg_matrix2DTranspose<double>(double** mat, size_t arraySizeX, size_t arraySizeY, double** res);
+/* *************************************************************** */
+template<class T>
 T** reg_matrix2DMultiply(T** mat1, size_t mat1X, size_t mat1Y, T** mat2, size_t mat2X, size_t mat2Y, bool transposeMat2) {
     if (transposeMat2 == false) {
         // First check that the dimension are appropriate

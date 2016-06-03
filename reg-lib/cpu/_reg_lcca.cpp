@@ -15,7 +15,7 @@ void GetDiscretisedValueLCCA_core3D(nifti_image *controlPointGridImage,
         reg_print_msg_error("TODO: allow different number of time points");
         reg_exit();
     }
-    int cpx, cpy, cpz, t, x, y, z, a, b, c, blockIndex, voxIndex, voxIndex_t, discretisedIndex;
+    int cpx, cpy, cpz, t, x, y, z, a, b, c, blockIndex, blockIndex_t, voxIndex, voxIndex_t, discretisedIndex;
     int label_1D_number = (discretise_radius / discretise_step) * 2 + 1;
     int label_2D_number = label_1D_number*label_1D_number;
     int label_nD_number = label_2D_number*label_1D_number;
@@ -41,8 +41,16 @@ void GetDiscretisedValueLCCA_core3D(nifti_image *controlPointGridImage,
     int voxelBlockNumber1Channel = blockSize[0] * blockSize[1] * blockSize[2];
     int currentControlPoint = 0;
 
-    // Allocate some static memory
-    float refBlockValue[voxelBlockNumber];
+    // Allocate some dynamic memory
+    float* refBlockValue = (float*) calloc(voxelBlockNumber, sizeof(float));
+    float* warBlockValue = (float*) calloc(voxelBlockNumber, sizeof(float));
+    int* refBlockValueMask = (int*) calloc(voxelBlockNumber, sizeof(int));
+    int* warBlockValueMask = (int*) calloc(voxelBlockNumber, sizeof(int));
+    // Calculate the mean channel by channel
+    int* ref_numberOfRealVoxelInTheBlock = (int*) calloc(refImage->nt, sizeof(int));
+    int* war_numberOfRealVoxelInTheBlock = (int*) calloc(warImage->nt, sizeof(int));
+    float* ref_mean = (float*) calloc(refImage->nt, sizeof(float));
+    float* war_mean = (float*) calloc(warImage->nt, sizeof(float));
 
     // Pointers to the input image
     size_t voxelNumber = (size_t)refImage->nx*
@@ -79,9 +87,8 @@ void GetDiscretisedValueLCCA_core3D(nifti_image *controlPointGridImage,
             }
         }
     }
-
     // Loop over all control points
-    for(cpz=1; cpz<controlPointGridImage->nz-1; ++cpz){
+    for(cpz=1; cpz<controlPointGridImage->nz-1; ++cpz){//1
         gridVox[2] = cpz;
         for(cpy=1; cpy<controlPointGridImage->ny-1; ++cpy){
             gridVox[1] = cpy;
@@ -95,8 +102,15 @@ void GetDiscretisedValueLCCA_core3D(nifti_image *controlPointGridImage,
                 imageVox[2]=reg_round(imageVox[2]);
 
                 // Extract the block in the reference image
-                // Calculate the mean channel by channel
-                float* ref_mean = (float*) calloc(refImage->nt, sizeof(float));
+                //Let's re-initialize the values
+                for(int bI=0;bI<voxelBlockNumber;bI++) {
+                    refBlockValue[bI]=0;
+                    refBlockValueMask[bI]=0;
+                }
+                for(int mI=0;mI<refImage->nt;mI++) {
+                    ref_mean[mI]=0;
+                    ref_numberOfRealVoxelInTheBlock[mI] = 0;
+                }
                 blockIndex = 0;
                 for(z=imageVox[2]-blockSize[2]/2; z<imageVox[2]+blockSize[2]/2; ++z){
                     for(y=imageVox[1]-blockSize[1]/2; y<imageVox[1]+blockSize[1]/2; ++y){
@@ -106,28 +120,32 @@ void GetDiscretisedValueLCCA_core3D(nifti_image *controlPointGridImage,
                                 if(mask[voxIndex]>-1){
                                     for(t=0; t<refImage->nt; ++t){
                                         voxIndex_t = t*voxelNumber + voxIndex;
-                                        refBlockValue[blockIndex] = refImgPtr[voxIndex_t];
-                                        if(refBlockValue[blockIndex]!=refBlockValue[blockIndex])
-                                            refBlockValue[blockIndex]=0.f;
-                                        ref_mean[t] += refBlockValue[blockIndex];
-                                        blockIndex++;
+                                        blockIndex_t = t*voxelBlockNumber1Channel + blockIndex;
+                                        if(refImgPtr[voxIndex_t] == refImgPtr[voxIndex_t]) {
+                                            std::cout<<"refImgPtr[voxIndex_t]="<<refImgPtr[voxIndex_t]<<std::endl;
+                                            refBlockValue[blockIndex_t] = refImgPtr[voxIndex_t];
+                                            refBlockValueMask[blockIndex_t] = 1;
+                                            ref_mean[t] += refBlockValue[blockIndex_t];
+                                            ref_numberOfRealVoxelInTheBlock[t]++;
+                                        }
                                     } //t
-                                }
-                            }
-                            else {
-                                for(t=0; t<refImage->nt; ++t){
-                                    refBlockValue[blockIndex] = 0.f;
-                                    blockIndex++;
-                                } // t
-                            } // mask
+                                } // if mask
+                            } // if inside image
+                            blockIndex++;
                         } // x
                     } // y
                 } // z
+                //DEBUG
+                std::cout<<"refBlockValue[0]="<<refBlockValue[0]<<std::endl;
+                //DEBUG
+                //mean refBlock
                 for(t=0; t<refImage->nt; ++t){
-                    ref_mean[t] /= (voxelBlockNumber1Channel);
+                    ref_mean[t] /= ref_numberOfRealVoxelInTheBlock[t];
+                    std::cout<<"ref_mean[t]="<<ref_mean[t]<<std::endl;
+                    std::cout<<"ref_numberOfRealVoxelInTheBlock[t]="<<ref_numberOfRealVoxelInTheBlock[t]<<std::endl;
                 }
-                // Loop over the discretised value
 
+                // Loop over the discretised value
                 DTYPE warpedValue;
                 int paddedImageVox[3] = {
                     imageVox[0]+warPaddedOffset[0],
@@ -136,90 +154,206 @@ void GetDiscretisedValueLCCA_core3D(nifti_image *controlPointGridImage,
                 };
                 int cc;
 
-                float warBlockValue[voxelBlockNumber];
                 for(cc=0; cc<label_1D_number; ++cc){
                     discretisedIndex = cc * label_2D_number;
                     c = paddedImageVox[2]-discretise_radius + cc*discretise_step;
                     for(b=paddedImageVox[1]-discretise_radius; b<=paddedImageVox[1]+discretise_radius; b+=discretise_step){
                         for(a=paddedImageVox[0]-discretise_radius; a<=paddedImageVox[0]+discretise_radius; a+=discretise_step){
                             blockIndex = 0;
-                            // Calculate the mean channel by channel
-                            float* war_mean = (float*) calloc(warImage->nt, sizeof(float));
+                            //Let's re-initialize the values
+                            for(int bI=0;bI<voxelBlockNumber;bI++) {
+                                warBlockValue[bI]=0;
+                                warBlockValueMask[bI]=0;
+                            }
+                            for(int mI=0;mI<refImage->nt;mI++) {
+                                war_mean[mI]=0;
+                                war_numberOfRealVoxelInTheBlock[mI]=0;
+                            }
+
                             for(z=c-blockSize[2]/2; z<c+blockSize[2]/2; ++z){
                                 for(y=b-blockSize[1]/2; y<b+blockSize[1]/2; ++y){
                                     for(x=a-blockSize[0]/2; x<a+blockSize[0]/2; ++x){
                                         voxIndex = (z*warPaddedDim[1]+y)*warPaddedDim[0]+x;
                                         for(t=0; t<warPaddedDim[3]; ++t){
                                             voxIndex_t = t*warPaddedVoxelNumber + voxIndex;
+                                            blockIndex_t = t*voxelBlockNumber1Channel + blockIndex;
                                             warpedValue = paddedWarImgPtr[voxIndex_t];
                                             if(warpedValue==warpedValue){
-                                                warBlockValue[blockIndex] = warpedValue;
+                                                warBlockValue[blockIndex_t] = warpedValue;
+                                                warBlockValueMask[blockIndex_t] = 1;
                                                 war_mean[t] += warpedValue;
+                                                war_numberOfRealVoxelInTheBlock[t]++;
                                             }
-                                            else warBlockValue[blockIndex] = 0.0;
-                                            blockIndex++;
                                         }
+                                        blockIndex++;
                                     } // x
                                 } // y
                             } // z
                             for(t=0; t<warImage->nt; ++t){
-                                war_mean[t] /= (voxelBlockNumber1Channel);
+                                war_mean[t] /= war_numberOfRealVoxelInTheBlock[t];
+                                std::cout<<"war_mean[t]="<<war_mean[t]<<std::endl;
                             }
                             // HERE GOES THE COMPUTATION OF LCCA BETWEEN BOTH BLOCKS (cf. Mattias publication)
                             //Allocate the 2D matrices
                             //Exx, Exy, Eyy
-                            float **Exx = reg_matrix2DAllocate<float>(refImage->nt, refImage->nt);
-                            float **Exy = reg_matrix2DAllocate<float>(refImage->nt, warImage->nt);
-                            float **Eyy = reg_matrix2DAllocate<float>(warImage->nt, warImage->nt);
+                            float **Exx = reg_matrix2DAllocateAndInitToZero<float>(refImage->nt, refImage->nt);
+                            float **Exy = reg_matrix2DAllocateAndInitToZero<float>(refImage->nt, warImage->nt);
+                            float **Eyy = reg_matrix2DAllocateAndInitToZero<float>(warImage->nt, warImage->nt);
+                            float **D   = reg_matrix2DAllocate<float>(warImage->nt, refImage->nt);
                             //Loop again over the blocks
                             //Because we assume that we have the same number of time points, 1 loop is enough :)
+                            int nbExx = 0;
+                            int nbExy = 0;
+                            int nbEyy = 0;
+                            for (int m=0;m<refImage->nt;m++) {
+                                //Loop over the channel
+                                for(int n=0; n<warImage->nt; n++){
+                                    nbExx = 0;
+                                    nbExy = 0;
+                                    nbEyy = 0;
+                                    for(int bI=0;bI<voxelBlockNumber1Channel;bI++) {
+                                        if(refBlockValueMask[bI+m*voxelBlockNumber1Channel] > 0 && refBlockValueMask[bI+n*voxelBlockNumber1Channel] > 0) {
+                                            Exx[m][n]+=(refBlockValue[bI+m*voxelBlockNumber1Channel]-ref_mean[m])*(refBlockValue[bI+n*voxelBlockNumber1Channel]-ref_mean[n]);
+                                            nbExx++;
+                                        }
+                                        if(refBlockValueMask[bI+m*voxelBlockNumber1Channel] > 0 && warBlockValueMask[bI+n*voxelBlockNumber1Channel] > 0) {
+                                            Exy[m][n]+=(refBlockValue[bI+m*voxelBlockNumber1Channel]-ref_mean[m])*(warBlockValue[bI+n*voxelBlockNumber1Channel]-war_mean[n]);
+                                            nbExy++;
+                                        }
+                                        if(warBlockValueMask[bI+m*voxelBlockNumber1Channel] > 0 && warBlockValueMask[bI+n*voxelBlockNumber1Channel] > 0) {
+                                            Eyy[m][n]+=(warBlockValue[bI+m*voxelBlockNumber1Channel]-war_mean[m])*(warBlockValue[bI+n*voxelBlockNumber1Channel]-war_mean[n]);
+                                            nbEyy++;
+                                        }
+                                    }
+                                    Exx[m][n]/=nbExx;
+                                    Exy[m][n]/=nbExy;
+                                    Eyy[m][n]/=nbEyy;
+                                }
+                            }
+                            //add eps to the diagononal to avoid computational problem when computing the inverse
+                            for(int m=0;m<refImage->nt;m++) {
+                                Exx[m][m]+=std::numeric_limits<float>::epsilon();
+                                Eyy[m][m]+=std::numeric_limits<float>::epsilon();
+                            }
+                            //DEBUG
+                            std::cout<<"Exx="<<std::endl;
                             for (int m=0;m<refImage->nt;m++) {
                                 //Loop over the channel
                                 for(int n=0; n<refImage->nt; n++){
-                                    for(int bI=0;bI<voxelBlockNumber1Channel;bI++) {
-                                        Exx[m][n]+=(refBlockValue[bI]-ref_mean[m])*(refBlockValue[bI]-ref_mean[n]);
-                                        Exy[m][n]+=(refBlockValue[bI]-ref_mean[m])*(warBlockValue[bI]-war_mean[n]);
-                                        Eyy[m][n]+=(warBlockValue[bI]-war_mean[m])*(warBlockValue[bI]-war_mean[n]);
-                                    }
-                                    Exx[m][n]/=voxelBlockNumber1Channel;
-                                    Exy[m][n]/=voxelBlockNumber1Channel;
-                                    Eyy[m][n]/=voxelBlockNumber1Channel;
+                                    std::cout<<Exx[m][n]<<" ";
                                 }
+                                std::cout<<std::endl;
                             }
+                            std::cout<<"Exy="<<std::endl;
+                            for (int m=0;m<refImage->nt;m++) {
+                                //Loop over the channel
+                                for(int n=0; n<refImage->nt; n++){
+                                    std::cout<<Exy[m][n]<<" ";
+                                }
+                                std::cout<<std::endl;
+                            }
+                            std::cout<<"Eyy="<<std::endl;
+                            for (int m=0;m<refImage->nt;m++) {
+                                //Loop over the channel
+                                for(int n=0; n<refImage->nt; n++){
+                                    std::cout<<Eyy[m][n]<<" ";
+                                }
+                                std::cout<<std::endl;
+                            }
+                            //DEBUG
                             //MATRIX DONE
-                            //Let's calculate D now: !!! attention au nom !!!!
-                            float** D = reg_matrix2DTranspose(Exy, refImage->nt, warImage->nt);
-                            reg_matNN_inv(Exx,refImage->nt,Exx);
-                            reg_matNN_inv(Eyy,warImage->nt,Eyy);
-                            reg_matrix2DMultiply(Exx,refImage->nt, refImage->nt,Exy, refImage->nt, warImage->nt, Exy, false);
-                            reg_matrix2DMultiply(Exy,refImage->nt, refImage->nt,Eyy, refImage->nt, warImage->nt, Exy, false);
-                            reg_matrix2DMultiply(Exy,refImage->nt, refImage->nt,D, refImage->nt, warImage->nt, D, false);
-                            //Calculate the trace:
-                            currentValue = 0;
-                            for (int idTrace=0;idTrace<refImage->nt;idTrace++) {
-                                currentValue+=D[idTrace][idTrace];
-                            }
-                            currentValue=1-currentValue/static_cast<float>(refImage->nt);
+                            //Let's check if everything is OK
+                            float detExx = reg_matrix2DDet(Exx,refImage->nt,refImage->nt);
+                            float detEyy = reg_matrix2DDet(Eyy,warImage->nt,warImage->nt);
+                            //if (abs(detExx) > std::numeric_limits<float>::epsilon() && abs(detEyy) > std::numeric_limits<float>::epsilon()) {
+                                //Let's calculate D now: !!! be carrefull at the names !!!!
+                                reg_matrix2DTranspose(Exy, refImage->nt, warImage->nt, D);
+                                std::cout<<"ExyT="<<std::endl;
+                                for (int m=0;m<refImage->nt;m++) {
+                                    //Loop over the channel
+                                    for(int n=0; n<refImage->nt; n++){
+                                        std::cout<<D[m][n]<<" ";
+                                    }
+                                    std::cout<<std::endl;
+                                }
+                                reg_matNN_inv(Exx,refImage->nt,Exx);
+                                std::cout<<"Exx-1="<<std::endl;
+                                for (int m=0;m<refImage->nt;m++) {
+                                    //Loop over the channel
+                                    for(int n=0; n<refImage->nt; n++){
+                                        std::cout<<Exx[m][n]<<" ";
+                                    }
+                                    std::cout<<std::endl;
+                                }
+                                reg_matNN_inv(Eyy,warImage->nt,Eyy);
+                                std::cout<<"Eyy-1="<<std::endl;
+                                for (int m=0;m<refImage->nt;m++) {
+                                    //Loop over the channel
+                                    for(int n=0; n<refImage->nt; n++){
+                                        std::cout<<Eyy[m][n]<<" ";
+                                    }
+                                    std::cout<<std::endl;
+                                }
+                                reg_matrix2DMultiply(Exx,refImage->nt, refImage->nt,Exy, refImage->nt, warImage->nt, Exy, false);
+                                std::cout<<"Exx Exy="<<std::endl;
+                                for (int m=0;m<refImage->nt;m++) {
+                                    //Loop over the channel
+                                    for(int n=0; n<refImage->nt; n++){
+                                        std::cout<<Exy[m][n]<<" ";
+                                    }
+                                    std::cout<<std::endl;
+                                }
+                                reg_matrix2DMultiply(Exy,refImage->nt, refImage->nt,Eyy, refImage->nt, warImage->nt, Exy, false);
+                                std::cout<<"Exy Eyy="<<std::endl;
+                                for (int m=0;m<refImage->nt;m++) {
+                                    //Loop over the channel
+                                    for(int n=0; n<refImage->nt; n++){
+                                        std::cout<<Exy[m][n]<<" ";
+                                    }
+                                    std::cout<<std::endl;
+                                }
+                                reg_matrix2DMultiply(Exy,refImage->nt, refImage->nt,D, refImage->nt, warImage->nt, D, false);
+                                std::cout<<"D="<<std::endl;
+                                for (int m=0;m<refImage->nt;m++) {
+                                    //Loop over the channel
+                                    for(int n=0; n<refImage->nt; n++){
+                                        std::cout<<D[m][n]<<" ";
+                                    }
+                                    std::cout<<std::endl;
+                                }
+                                //Calculate the trace:
+                                currentValue = 0;
+                                for (int idTrace=0;idTrace<refImage->nt;idTrace++) {
+                                    currentValue+=D[idTrace][idTrace];
+                                }
+                                currentValue=1-currentValue/static_cast<float>(refImage->nt);
+                            //} else { //we are at the border of the image
+                            //    currentValue = 1.0;//let's put something
+                            //}
                             // END HERE
+                            //DEBUG
+                            //std::cout<<"currentValue="<<currentValue<<std::endl;
+                            //DEBUG
                             discretisedValue[currentControlPoint * label_nD_number + discretisedIndex] =
                                     //currentValue / static_cast<float>(voxelBlockNumber);
-                                    currentValue;//Normalisation - maybe not???
+                                    currentValue;//Normalisation - maybe not this time, it is already normalized.
                             ++discretisedIndex;
 
                             //Mr Propre
                             reg_matrix2DDeallocate(refImage->nt, Exx);
                             reg_matrix2DDeallocate(refImage->nt, Exy);
                             reg_matrix2DDeallocate(warImage->nt, Eyy);
-                            free(war_mean);
+                            reg_matrix2DDeallocate(warImage->nt,D);
                         } // a
                     } // b
                 } // cc
                 ++currentControlPoint;
-                //Mr Propre
-                free(ref_mean);
             } // cpx
         } // cpy
     } // cpz
+    //Mr Propre
+    free(ref_mean);
+    free(war_mean);
     free(paddedWarImgPtr);
 }
 /* *************************************************************** */

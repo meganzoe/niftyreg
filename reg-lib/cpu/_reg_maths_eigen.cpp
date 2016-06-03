@@ -378,13 +378,13 @@ void reg_matNN_inv(float const *in_mat, int dim, float *out_mat)
 /* *************************************************************** */
 void reg_matNN_inv(float** in_mat, int dim, float** out_mat)
 {
-    Eigen::MatrixXd m, m_inv;
+    Eigen::MatrixXd m(dim,dim); //m_inv(dim,dim);
     for (size_t i = 0; i < dim; ++i) {
         for (size_t j = 0; j < dim; ++j) {
             m(i, j) = static_cast<double>(in_mat[i][j]);
         }
     }
-    m_inv = m.inverse();
+    Eigen::MatrixXd m_inv = m.inverse();
     for (size_t i = 0; i < dim; ++i){
         for (size_t j = 0; j < dim; ++j){
             out_mat[i][j] = static_cast<float>(m_inv(i, j));

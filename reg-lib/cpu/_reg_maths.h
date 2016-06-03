@@ -143,6 +143,8 @@ void reg_matrix2DDeallocate(size_t arraySizeX, T** mat);
 /* *************************************************************** */
 extern "C++" template<class T>
 T** reg_matrix2DTranspose(T** mat, size_t arraySizeX, size_t arraySizeY);
+extern "C++" template<class T>
+void reg_matrix2DTranspose(T** mat, size_t arraySizeX, size_t arraySizeY, T** res);
 /* *************************************************************** */
 extern "C++" template<class T>
 T** reg_matrix2DMultiply(T** mat1, size_t mat1X, size_t mat1Y, T** mat2, size_t mat2X, size_t mat2Y, bool transposeMat2);
