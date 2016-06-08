@@ -178,8 +178,8 @@ int main(int argc, char **argv)
       //
       if(max_difference>EPS)
       {
-         printf("reg_test_measure: Incorrect measure value %.7g (diff=%.7g)\n",
-                measure, max_difference);
+         printf("reg_test_measure: Incorrect measure value %.7g vs %.7g (diff=%.7g)\n",
+                measure, expectedValue, max_difference);
          return EXIT_FAILURE;
       }
       delete measure_object;
