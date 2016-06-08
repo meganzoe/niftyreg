@@ -43,7 +43,7 @@ int main(int argc, char **argv)
    reg_tools_changeDatatype<float>(floatingImage);
 
    // Create control point grid image
-   int spacing_voxel = 5;
+   int spacing_voxel = 8;
    float grid_step_mm[3]={spacing_voxel*referenceImage->dx,
                           spacing_voxel*referenceImage->dy,
                           spacing_voxel*referenceImage->dz};
@@ -95,7 +95,7 @@ int main(int argc, char **argv)
                                   deformationField,
                                   mask,
                                   false, //composition
-                                  false // bspline
+                                  true // bspline
                                   );
 
    // create a warped image
@@ -108,7 +108,7 @@ int main(int argc, char **argv)
                      3,
                      0.f);
 
-   int mind_length = 6;
+   int mind_length = 12;
    //MINDSSC image
    nifti_image *MINDSSC_refimg = nifti_copy_nim_info(referenceImage);
    MINDSSC_refimg->ndim = MINDSSC_refimg->dim[0] = 4;
@@ -116,7 +116,7 @@ int main(int argc, char **argv)
    MINDSSC_refimg->nvox = MINDSSC_refimg->nvox*mind_length;
    MINDSSC_refimg->data=(void *)calloc(MINDSSC_refimg->nvox,MINDSSC_refimg->nbyper);
    // Compute the MIND descriptor
-   GetMINDImageDesciptor(referenceImage,MINDSSC_refimg, mask, 1, 0);
+   GetMINDSSCImageDesciptor(referenceImage,MINDSSC_refimg, mask, 2, 0);
 
    //MINDSSC image
    nifti_image *MINDSSC_warimg = nifti_copy_nim_info(warpedImage);
@@ -125,7 +125,7 @@ int main(int argc, char **argv)
    MINDSSC_warimg->nvox = MINDSSC_warimg->nvox*mind_length;
    MINDSSC_warimg->data=(void *)calloc(MINDSSC_warimg->nvox,MINDSSC_warimg->nbyper);
    // Compute the MIND descriptor
-   GetMINDImageDesciptor(warpedImage,MINDSSC_warimg, mask, 1, 0);
+   GetMINDSSCImageDesciptor(warpedImage,MINDSSC_warimg, mask, 2, 0);
 
    reg_ssd* ssdMeasure = new reg_ssd();
 
@@ -137,8 +137,6 @@ int main(int argc, char **argv)
                                  MINDSSC_warimg,
                                  NULL,
                                  NULL);
-
-   std::cout << "INIT VALUE = " << ssdMeasure->GetSimilarityMeasureValue() << std::endl;
 
    reg_discrete_init* reg_dcObject = new reg_discrete_init(ssdMeasure,
                                                            referenceImage,
@@ -154,7 +152,7 @@ int main(int argc, char **argv)
                                   deformationField,
                                   mask,
                                   false, //composition
-                                  false // bspline
+                                  true // bspline
                                   );
    reg_resampleImage(floatingImage,
                      warpedImage,
@@ -162,26 +160,20 @@ int main(int argc, char **argv)
                      mask,
                      3,
                      0.f);
-   GetMINDImageDesciptor(warpedImage,MINDSSC_warimg, mask, 1, 0);
-
-
-   std::cout << "FINAL VALUE = " << ssdMeasure->GetSimilarityMeasureValue() << std::endl;
-
-   reg_io_WriteImageFile(controlPointImage, "cpp.nii.gz");
 
    warpedImage->cal_min = floatingImage->cal_min;
    warpedImage->cal_max = floatingImage->cal_max;
    reg_io_WriteImageFile(warpedImage, outputImageName);
 
-   nifti_image *jac_image = nifti_copy_nim_info(referenceImage);
-   jac_image->data=(void *)calloc(jac_image->nvox,jac_image->nbyper);
-   reg_spline_GetJacobianMap(controlPointImage, jac_image);
+   //nifti_image *jac_image = nifti_copy_nim_info(referenceImage);
+   //jac_image->data=(void *)calloc(jac_image->nvox,jac_image->nbyper);
+   //reg_spline_GetJacobianMap(controlPointImage, jac_image);
 
-   reg_getDisplacementFromDeformation(deformationField);
-   deformationField->dim[4] = deformationField->nt = deformationField->nu;
-   deformationField->dim[5] = deformationField->nu = 1;
-   deformationField->dim[0] = deformationField->ndim = 4;
-   reg_io_WriteImageFile(deformationField, "disp.nii.gz");
+   //reg_getDisplacementFromDeformation(deformationField);
+   //deformationField->dim[4] = deformationField->nt = deformationField->nu;
+   //deformationField->dim[5] = deformationField->nu = 1;
+   //deformationField->dim[0] = deformationField->ndim = 4;
+   //reg_io_WriteImageFile(deformationField, "disp.nii.gz");
 
 
    delete reg_dcObject;
@@ -193,7 +185,7 @@ int main(int argc, char **argv)
    nifti_image_free(warpedImage);
    nifti_image_free(controlPointImage);
    nifti_image_free(deformationField);
-   nifti_image_free(jac_image);
+   //nifti_image_free(jac_image);
 
    time_t end;
    time(&end);

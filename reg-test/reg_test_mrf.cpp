@@ -60,7 +60,7 @@ int main(int argc, char **argv)
    }
    //
    reg_mrf* reg_mrfObject =
-           new reg_mrf(discrete_radius,discrete_increment,0,3,nb_CP);
+           new reg_mrf(discrete_radius,discrete_increment,3,nb_CP);
 
    reg_mrfObject->SetDiscretisedMeasure(dataCost);
    reg_mrfObject->SetOrderedList(orderedList);

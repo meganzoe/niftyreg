@@ -215,6 +215,9 @@ void reg_f3d<T>::CheckParameters()
    if(strcmp(this->executableName,"NiftyReg F3D")==0 ||
          strcmp(this->executableName,"NiftyReg F3D GPU")==0)
    {
+       T penaltySum=this->bendingEnergyWeight +
+             this->linearEnergyWeight +
+             this->jacobianLogWeight;
 #ifdef BUILD_DEV
    if(this->linearSpline==true){
       if(this->bendingEnergyWeight>0){
@@ -229,14 +232,12 @@ void reg_f3d<T>::CheckParameters()
          this->jacobianLogWeight=0;
          reg_print_msg_warn("The weight of the Jacobian based regularisation term is set to 0 when using linear spline");
       }
+      penaltySum=this->pairwiseEnergyWeight;
+   } else {
+      this->pairwiseEnergyWeight = 0.0;
    }
-   T penaltySum=this->pairwiseEnergyWeight;
-#else
-      T penaltySum=this->bendingEnergyWeight +
-            this->linearEnergyWeight +
-            this->jacobianLogWeight;
 #endif
-      if(penaltySum>=1.0)
+      if(penaltySum>1.0)
       {
          this->similarityWeight=0;
          this->similarityWeight /= penaltySum;
@@ -287,7 +288,7 @@ void reg_f3d<T>::Initialise()
       // Create and allocate the control point image
       reg_createControlPointGrid<T>(&this->controlPointGrid,
                                     this->referencePyramid[0],
-            gridSpacing);
+                                    gridSpacing);
 
       // The control point position image is initialised with the affine transformation
       if(this->affineTransformation==NULL)
@@ -1272,7 +1273,12 @@ void reg_f3d<T>::DiscreteInitialisation()
          desc_length = 12;
 
       // Initialise the measure of similarity use to compute the distance between the blocks
-      reg_ssd *ssdMeasure = new reg_ssd();
+      reg_ssd *ssdMeasure = NULL;
+      if(this->linearSpline) {
+        *ssdMeasure = new reg_ssd(true);
+      } else {
+        *ssdMeasure = new reg_ssd();
+      }
       for(int i=0;i<desc_length;++i)
          ssdMeasure->SetActiveTimepoint(i);
 
@@ -1352,33 +1358,42 @@ void reg_f3d<T>::DiscreteInitialisation()
       //
       // Create and initialise the discretisation initialisation object
       //
-      //int discrete_increment=3;
-      //int discretisation_radius=discrete_increment*reg_ceil(this->controlPointGrid->dx/this->currentReference->dx);
-      int discrete_increment=1;
-      //DEBUG
-      //std::cout<<"(this->levelNumber-this->currentLevel-1)="<<(this->levelNumber-this->currentLevel-1)<<std::endl;
-      //DEBUG
-      int discretisation_radius=
-              reg_ceil(discrete_increment*(this->controlPointGrid->dx/this->currentReference->dx)/pow(2.0,(this->levelNumber-this->currentLevel-1)));
-      //
-//      reg_discrete_init *discrete_init_object = new reg_discrete_init(ssdMeasure,
-//                                                                      this->currentReference,
-//                                                                      this->controlPointGrid,
-//                                                                      discretisation_radius,
-//                                                                      discrete_increment,
-//                                                                      100,
-//                                                                      this->bendingEnergyWeight*pow(16.f,(this->levelNumber-this->currentLevel-1)) +
-//                                                                      this->linearEnergyWeight);
-      reg_mrf *discrete_init_object = new reg_mrf(ssdMeasure,
-                                                  this->currentReference,
-                                                  this->controlPointGrid,
-                                                  discretisation_radius,
-                                                  discrete_increment,
-                                                  this->bendingEnergyWeight*pow(16.f,(this->levelNumber-this->currentLevel-1)) +
-                                                  this->linearEnergyWeight);
+      int discrete_increment=3;
+      int discretisation_radius=18;
+#ifndef NDEBUG
+      char text[255];
+      sprintf(text, "discretisation_radius value is %u", discretisation_radius);
+      reg_print_msg_debug(text);
+#endif
 
-      // Run the discrete initialisation
-      discrete_init_object->Run();
+      if(this->pairwiseEnergyWeight>0) {
+
+        reg_mrf *discrete_init_object = new reg_mrf(ssdMeasure,
+                                                      this->currentReference,
+                                                      this->controlPointGrid,
+                                                      discretisation_radius,
+                                                      discrete_increment,
+                                                      this->pairwiseEnergyWeight);
+        // Run the discrete initialisation
+        discrete_init_object->Run();
+        //
+        delete discrete_init_object;
+        //
+      } else {
+
+        reg_discrete_init *discrete_init_object = new reg_discrete_init(ssdMeasure,
+                                                                          this->currentReference,
+                                                                          this->controlPointGrid,
+                                                                          discretisation_radius,
+                                                                          discrete_increment,
+                                                                          100,
+                                                                          this->bendingEnergyWeight);
+        // Run the discrete initialisation
+        discrete_init_object->Run();
+        //
+        delete discrete_init_object;
+        //
+      }
 
       // Free all the allocate objects
       if(MIND_refImg!=NULL)
@@ -1386,8 +1401,6 @@ void reg_f3d<T>::DiscreteInitialisation()
       if(MIND_warImg!=NULL)
          nifti_image_free(MIND_warImg);
       delete ssdMeasure;
-      delete discrete_init_object;
-      char text[255];
 
       sprintf(text, "Discrete initialisation done");
       reg_print_info(this->executableName, text);
