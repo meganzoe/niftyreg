@@ -1,11 +1,12 @@
 #include "_reg_ReadWriteImage.h"
 #include "_reg_ReadWriteBinary.h"
 #include "_reg_mrf.h"
+#include "_reg_discrete_init.h"
 #include "_reg_localTrans.h"
 #include "_reg_resampling.h"
 #include "_reg_mind.h"
 
-#define EPS 0.000001
+#define EPS 0.00001
 
 int main(int argc, char **argv)
 {
@@ -71,14 +72,28 @@ int main(int argc, char **argv)
       ssdMeasure->SetActiveTimepoint(i);
    }
    ssdMeasure->InitialiseMeasure(referenceImage,warpedImage,mask,warpedImage,NULL,NULL);
+   //
    reg_mrf* reg_mrfObject =
-           new reg_mrf(ssdMeasure,referenceImage,controlPointImage,discrete_radius,discrete_increment,0);//18,3 = default parameters
+           new reg_mrf(ssdMeasure,referenceImage,controlPointImage,discrete_radius,discrete_increment);//18,3 = default parameters
    reg_mrfObject->GetDiscretisedMeasure();
    //Let's compare the 2 datacosts
    for(size_t i=0;i<nb_CP*nb_disp3D;i++) {
        float currentValue = reg_mrfObject->GetDiscretisedMeasurePtr()[i];
        float expectedValue = expectedDataCost[i];
-       if((currentValue - expectedValue) > EPS) {
+       if(std::abs(currentValue - expectedValue) > EPS) {
+           reg_print_msg_error("the 2 dataCost are different");
+           return EXIT_FAILURE;
+       }
+   }
+   //
+   reg_discrete_init * reg_dinitObject =
+           new reg_discrete_init(ssdMeasure,referenceImage,controlPointImage,discrete_radius,discrete_increment,1,1);//18,3 = default parameters
+   reg_dinitObject->GetDiscretisedMeasure();
+   //Let's compare the 2 datacosts
+   for(size_t i=0;i<nb_CP*nb_disp3D;i++) {
+       float currentValue = reg_dinitObject->GetDiscretisedMeasurePtr()[i];
+       float expectedValue = expectedDataCost[i];
+       if(std::abs(currentValue - expectedValue) > EPS) {
            reg_print_msg_error("the 2 dataCost are different");
            return EXIT_FAILURE;
        }

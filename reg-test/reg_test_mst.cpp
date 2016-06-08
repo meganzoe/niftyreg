@@ -41,7 +41,7 @@ int main(int argc, char **argv)
    //readFloatBinaryArray(expectedEdgeWeightName, nb_CP, expectedEdgeWeight);
 
    reg_mrf* reg_mrfObject =
-           new reg_mrf(2,1,0,3,nb_CP);
+           new reg_mrf(2,1,3,nb_CP);
 
    reg_mrfObject->GetPrimsMST(edgeWeightMatrix,indexNeighbours, nb_CP, 6, false);
    //COMPARE THE RESULTS

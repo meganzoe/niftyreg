@@ -41,9 +41,11 @@ public:
    /// @brief Destructor
    ~reg_discrete_init();
    void Run();
+   //For the unit tests
+   void GetDiscretisedMeasure();
+   float* GetDiscretisedMeasurePtr();
 
 private:
-   void GetDiscretisedMeasure();
    void AddL2Penalisation(float);
    void GetRegularisedMeasure();
    void getOptimalLabel();
