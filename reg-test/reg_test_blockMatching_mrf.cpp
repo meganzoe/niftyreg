@@ -81,7 +81,7 @@ int main(int argc, char **argv)
        float currentValue = reg_mrfObject->GetDiscretisedMeasurePtr()[i];
        float expectedValue = expectedDataCost[i];
        if(std::abs(currentValue - expectedValue) > EPS) {
-           reg_print_msg_error("the 2 dataCost are different");
+           reg_print_msg_error("reg_mrf - the 2 dataCost are different");
            return EXIT_FAILURE;
        }
    }
@@ -94,7 +94,7 @@ int main(int argc, char **argv)
        float currentValue = reg_dinitObject->GetDiscretisedMeasurePtr()[i];
        float expectedValue = expectedDataCost[i];
        if(std::abs(currentValue - expectedValue) > EPS) {
-           reg_print_msg_error("the 2 dataCost are different");
+           reg_print_msg_error("reg_discrete_init - the 2 dataCost are different");
            return EXIT_FAILURE;
        }
    }
