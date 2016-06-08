@@ -213,29 +213,31 @@ void reg_f3d<T>::CheckParameters()
    reg_base<T>::CheckParameters();
    // NORMALISE THE OBJECTIVE FUNCTION WEIGHTS
    if(strcmp(this->executableName,"NiftyReg F3D")==0 ||
-         strcmp(this->executableName,"NiftyReg F3D GPU")==0)
+      strcmp(this->executableName,"NiftyReg F3D GPU")==0)
    {
-       T penaltySum=this->bendingEnergyWeight +
-             this->linearEnergyWeight +
-             this->jacobianLogWeight;
 #ifdef BUILD_DEV
-   if(this->linearSpline==true){
-      if(this->bendingEnergyWeight>0){
-         this->bendingEnergyWeight=0;
-         reg_print_msg_warn("The weight of the bending energy term is set to 0 when using linear spline");
+      if(this->linearSpline==true){
+         if(this->bendingEnergyWeight>0){
+            this->bendingEnergyWeight=0;
+            reg_print_msg_warn("The weight of the bending energy term is set to 0 when using linear spline");
+         }
+         if(this->linearEnergyWeight>0){
+            this->linearEnergyWeight=0;
+            reg_print_msg_warn("The weight of the lienar energy term is set to 0 when using linear spline");
+         }
+         if(this->jacobianLogWeight>0){
+            this->jacobianLogWeight=0;
+            reg_print_msg_warn("The weight of the Jacobian based regularisation term is set to 0 when using linear spline");
+         }
       }
-      if(this->linearEnergyWeight>0){
-         this->linearEnergyWeight=0;
-         reg_print_msg_warn("The weight of the lienar energy term is set to 0 when using linear spline");
-      }
-      if(this->jacobianLogWeight>0){
-         this->jacobianLogWeight=0;
-         reg_print_msg_warn("The weight of the Jacobian based regularisation term is set to 0 when using linear spline");
-      }
-      penaltySum=this->pairwiseEnergyWeight;
-   } else {
-      this->pairwiseEnergyWeight = 0.0;
-   }
+      T penaltySum=this->bendingEnergyWeight +
+            this->linearEnergyWeight +
+            this->jacobianLogWeight +
+            this->pairwiseEnergyWeight;
+#else
+      T penaltySum=this->bendingEnergyWeight +
+            this->linearEnergyWeight +
+            this->jacobianLogWeight;
 #endif
       if(penaltySum>1.0)
       {
@@ -248,7 +250,7 @@ void reg_f3d<T>::CheckParameters()
          this->pairwiseEnergyWeight /= penaltySum;
 #endif
       }
-      else this->similarityWeight=1.0 - penaltySum;
+      else this->similarityWeight= 1.0 - penaltySum;
    }
 #ifndef NDEBUG
    reg_print_fct_debug("reg_f3d<T>::CheckParameters");
@@ -1273,12 +1275,8 @@ void reg_f3d<T>::DiscreteInitialisation()
          desc_length = 12;
 
       // Initialise the measure of similarity use to compute the distance between the blocks
-      reg_ssd *ssdMeasure = NULL;
-      if(this->linearSpline) {
-        *ssdMeasure = new reg_ssd(true);
-      } else {
-        *ssdMeasure = new reg_ssd();
-      }
+      reg_ssd *ssdMeasure = new reg_ssd(true); // sad
+
       for(int i=0;i<desc_length;++i)
          ssdMeasure->SetActiveTimepoint(i);
 
@@ -1355,44 +1353,40 @@ void reg_f3d<T>::DiscreteInitialisation()
                                        NULL,
                                        NULL);
       }
-      //
       // Create and initialise the discretisation initialisation object
-      //
       int discrete_increment=3;
       int discretisation_radius=18;
 #ifndef NDEBUG
       char text[255];
+      sprintf(text, "discrete_increment value is %u", discrete_increment);
+      reg_print_msg_debug(text);
       sprintf(text, "discretisation_radius value is %u", discretisation_radius);
       reg_print_msg_debug(text);
 #endif
 
-      if(this->pairwiseEnergyWeight>0) {
-
-        reg_mrf *discrete_init_object = new reg_mrf(ssdMeasure,
-                                                      this->currentReference,
-                                                      this->controlPointGrid,
-                                                      discretisation_radius,
-                                                      discrete_increment,
-                                                      this->pairwiseEnergyWeight);
+      if(this->linearSpline==true){
+         reg_mrf *discrete_init_object = new reg_mrf(ssdMeasure,
+                                                     this->currentReference,
+                                                     this->controlPointGrid,
+                                                     discretisation_radius,
+                                                     discrete_increment,
+                                                     this->pairwiseEnergyWeight);
         // Run the discrete initialisation
         discrete_init_object->Run();
         //
         delete discrete_init_object;
-        //
-      } else {
-
-        reg_discrete_init *discrete_init_object = new reg_discrete_init(ssdMeasure,
-                                                                          this->currentReference,
-                                                                          this->controlPointGrid,
-                                                                          discretisation_radius,
-                                                                          discrete_increment,
-                                                                          100,
-                                                                          this->bendingEnergyWeight);
+      }else{
+         reg_discrete_init *discrete_init_object = new reg_discrete_init(ssdMeasure,
+                                                                         this->currentReference,
+                                                                         this->controlPointGrid,
+                                                                         discretisation_radius,
+                                                                         discrete_increment,
+                                                                         100,
+                                                                         this->bendingEnergyWeight);
         // Run the discrete initialisation
         discrete_init_object->Run();
         //
         delete discrete_init_object;
-        //
       }
 
       // Free all the allocate objects
@@ -1402,6 +1396,7 @@ void reg_f3d<T>::DiscreteInitialisation()
          nifti_image_free(MIND_warImg);
       delete ssdMeasure;
 
+      char text[255];
       sprintf(text, "Discrete initialisation done");
       reg_print_info(this->executableName, text);
    }
