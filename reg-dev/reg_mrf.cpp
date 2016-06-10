@@ -98,7 +98,7 @@ int main(int argc, char **argv)
                       0.f);
 
     free(maskImage);
-    nifti_image_free(deformationFieldImage);
+    //nifti_image_free(deformationFieldImage);
     /////////////////////////////////////////////////////////////////////////////////////////
     //////////////////////////LETS DO MULTI-RESOLUTION///////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////
@@ -108,7 +108,7 @@ int main(int argc, char **argv)
     //int nbLevel = 5;
     //int discrete_radiusArray[] = {30,20,12,6,2};
     //int discrete_incrementArray[] = {5,4,3,2,1};
-    //int spacing_voxelArray[] = {8,7,6,5,4};
+    //int grid_stepArray[] = {8,7,6,5,4};
     int nbLevel = 1;
     int discrete_radiusArray[] = {18};
     int discrete_incrementArray[] = {3};
@@ -218,9 +218,12 @@ int main(int argc, char **argv)
                                        false, //composition
                                        true // bspline
                                        );
+
+        reg_defField_compose(deformationField,deformationFieldImage,mask);
+
         reg_resampleImage(floatingImage,
                           warpedImage,
-                          deformationField,
+                          deformationFieldImage,
                           mask,
                           1,
                           0.f);
@@ -246,6 +249,7 @@ int main(int argc, char **argv)
     nifti_image_free(referenceImage);
     nifti_image_free(floatingImage);
     nifti_image_free(warpedImage);
+    nifti_image_free(deformationFieldImage);
 
     time_t end;
     time(&end);

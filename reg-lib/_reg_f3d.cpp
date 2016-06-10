@@ -213,29 +213,29 @@ void reg_f3d<T>::CheckParameters()
    reg_base<T>::CheckParameters();
    // NORMALISE THE OBJECTIVE FUNCTION WEIGHTS
    if(strcmp(this->executableName,"NiftyReg F3D")==0 ||
-         strcmp(this->executableName,"NiftyReg F3D GPU")==0)
+      strcmp(this->executableName,"NiftyReg F3D GPU")==0)
    {
        T penaltySum=this->bendingEnergyWeight +
              this->linearEnergyWeight +
              this->jacobianLogWeight;
 #ifdef BUILD_DEV
-   if(this->linearSpline==true){
-      if(this->bendingEnergyWeight>0){
-         this->bendingEnergyWeight=0;
-         reg_print_msg_warn("The weight of the bending energy term is set to 0 when using linear spline");
-      }
-      if(this->linearEnergyWeight>0){
-         this->linearEnergyWeight=0;
-         reg_print_msg_warn("The weight of the lienar energy term is set to 0 when using linear spline");
-      }
-      if(this->jacobianLogWeight>0){
-         this->jacobianLogWeight=0;
-         reg_print_msg_warn("The weight of the Jacobian based regularisation term is set to 0 when using linear spline");
-      }
+      if(this->linearSpline==true){
+         if(this->bendingEnergyWeight>0){
+            this->bendingEnergyWeight=0;
+            reg_print_msg_warn("The weight of the bending energy term is set to 0 when using linear spline");
+         }
+         if(this->linearEnergyWeight>0){
+            this->linearEnergyWeight=0;
+            reg_print_msg_warn("The weight of the lienar energy term is set to 0 when using linear spline");
+         }
+         if(this->jacobianLogWeight>0){
+            this->jacobianLogWeight=0;
+            reg_print_msg_warn("The weight of the Jacobian based regularisation term is set to 0 when using linear spline");
+         }
       penaltySum=this->pairwiseEnergyWeight;
-   } else {
-      this->pairwiseEnergyWeight = 0.0;
-   }
+      } else {
+            penaltySum += this->pairwiseEnergyWeight;
+      }
 #endif
       if(penaltySum>1.0)
       {
@@ -248,7 +248,7 @@ void reg_f3d<T>::CheckParameters()
          this->pairwiseEnergyWeight /= penaltySum;
 #endif
       }
-      else this->similarityWeight=1.0 - penaltySum;
+      else this->similarityWeight= 1.0 - penaltySum;
    }
 #ifndef NDEBUG
    reg_print_fct_debug("reg_f3d<T>::CheckParameters");
@@ -604,9 +604,10 @@ void reg_f3d<T>::GetSimilarityMeasureGradient()
    this->GetVoxelBasedGradient();
 
    int kernel_type=CUBIC_SPLINE_KERNEL;
+#ifdef BUILD_DEV
    if(this->linearSpline)
       kernel_type=LINEAR_KERNEL;
-
+#endif
    // The voxel based NMI gradient is convolved with a spline kernel
    // Convolution along the x axis
    float currentNodeSpacing[3];
@@ -1176,18 +1177,18 @@ void reg_f3d<T>::PrintCurrentObjFunctionValue(T currentSize)
    sprintf(text, "[%i] Current objective function: %g",
            (int)this->optimiser->GetCurrentIterationNumber(),
            this->optimiser->GetBestObjFunctionValue());
-   sprintf(text, "%s = (wSIM)%g", text, this->bestWMeasure);
+   sprintf(text+strlen(text), " = (wSIM)%g", this->bestWMeasure);
    if(this->bendingEnergyWeight>0)
-      sprintf(text, "%s - (wBE)%.2e", text, this->bestWBE);
+      sprintf(text+strlen(text), " - (wBE)%.2e", this->bestWBE);
    if(this->linearEnergyWeight>0)
-      sprintf(text, "%s - (wLE)%.2e", text, this->bestWLE);
+      sprintf(text+strlen(text), " - (wLE)%.2e", this->bestWLE);
    if(this->jacobianLogWeight>0)
-      sprintf(text, "%s - (wJAC)%.2e", text, this->bestWJac);
+      sprintf(text+strlen(text), "- (wJAC)%.2e", this->bestWJac);
 #ifdef BUILD_DEV
    if(this->pairwiseEnergyWeight>0)
-      sprintf(text, "%s - (wPW)%.2e", text, this->bestWPE);
+      sprintf(text+strlen(text), " - (wPW)%.2e", this->bestWPE);
 #endif
-   sprintf(text, "%s [+ %g mm]", text, currentSize);
+   sprintf(text+strlen(text), " [+ %g mm]", currentSize);
    reg_print_info(this->executableName, text);
 #ifndef NDEBUG
    reg_print_fct_debug("reg_f3d<T>::PrintCurrentObjFunctionValue");
@@ -1272,12 +1273,8 @@ void reg_f3d<T>::DiscreteInitialisation()
          desc_length = 12;
 
       // Initialise the measure of similarity use to compute the distance between the blocks
-      reg_ssd *ssdMeasure = NULL;
-      if(this->linearSpline) {
-        *ssdMeasure = new reg_ssd(true);
-      } else {
-        *ssdMeasure = new reg_ssd();
-      }
+      reg_ssd *ssdMeasure = new reg_ssd(true); // sad
+
       for(int i=0;i<desc_length;++i)
          ssdMeasure->SetActiveTimepoint(i);
 
@@ -1354,43 +1351,41 @@ void reg_f3d<T>::DiscreteInitialisation()
                                        NULL,
                                        NULL);
       }
-      //
       // Create and initialise the discretisation initialisation object
-      //
       int discrete_increment=3;
       int discretisation_radius=18;
 #ifndef NDEBUG
       char text[255];
+      sprintf(text, "discrete_increment value is %u", discrete_increment);
+      reg_print_msg_debug(text);
       sprintf(text, "discretisation_radius value is %u", discretisation_radius);
       reg_print_msg_debug(text);
 #endif
 
-      if(this->pairwiseEnergyWeight>0) {
-
-        reg_mrf *discrete_init_object = new reg_mrf(ssdMeasure,
-                                                      this->currentReference,
-                                                      this->controlPointGrid,
-                                                      discretisation_radius,
-                                                      discrete_increment,
-                                                      this->pairwiseEnergyWeight);
+      if(this->linearSpline==true){
+         reg_mrf *discrete_init_object = new reg_mrf(ssdMeasure,
+                                                     this->currentReference,
+                                                     this->controlPointGrid,
+                                                     discretisation_radius,
+                                                     discrete_increment,
+                                                     this->pairwiseEnergyWeight);
         // Run the discrete initialisation
         discrete_init_object->Run();
         //
-        delete discrete_init_object;
+        delete[] discrete_init_object;
         //
       } else {
-
-        reg_discrete_init *discrete_init_object = new reg_discrete_init(ssdMeasure,
-                                                                          this->currentReference,
-                                                                          this->controlPointGrid,
-                                                                          discretisation_radius,
-                                                                          discrete_increment,
-                                                                          100,
-                                                                          this->bendingEnergyWeight);
+         reg_discrete_init *discrete_init_object = new reg_discrete_init(ssdMeasure,
+                                                                         this->currentReference,
+                                                                         this->controlPointGrid,
+                                                                         discretisation_radius,
+                                                                         discrete_increment,
+                                                                         100,
+                                                                         this->bendingEnergyWeight);
         // Run the discrete initialisation
         discrete_init_object->Run();
         //
-        delete discrete_init_object;
+        delete[] discrete_init_object;
         //
       }
 
@@ -1401,7 +1396,8 @@ void reg_f3d<T>::DiscreteInitialisation()
          nifti_image_free(MIND_warImg);
       delete ssdMeasure;
 
-      sprintf(text, "Discrete initialisation done", this->inputReference->fname);
+      //char text[255];
+      sprintf(text, "Discrete initialisation done");
       reg_print_info(this->executableName, text);
    }
    else{

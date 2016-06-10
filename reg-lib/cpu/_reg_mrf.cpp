@@ -70,15 +70,15 @@ reg_mrf::reg_mrf(reg_measure *_measure,
    this->node_number = (size_t)this->controlPointImage->nx *
          this->controlPointImage->ny * this->controlPointImage->nz;
    //
-   float maxsamp=reg_ceil(this->controlPointImage->dx)*
-                 reg_ceil(this->controlPointImage->dy)*
-                 reg_ceil(this->controlPointImage->dz);
-   float alphai=this->controlPointImage->dx/(_reg_weight*(float)this->discrete_radius);//dx... why not
-   float alpha1=0.5*alphai/(float)(maxsamp);
+   //float maxsamp=reg_ceil(this->controlPointImage->dx)*
+   //              reg_ceil(this->controlPointImage->dy)*
+   //              reg_ceil(this->controlPointImage->dz);
+   //float alphai=this->controlPointImage->dx/(_reg_weight*(float)this->discrete_radius);//dx... why not
+   //float alpha1=0.5*alphai/(float)(maxsamp);
    //DEBUG
    //std::cout<<"alpha1="<<alpha1<<std::endl;
    //DEBUG
-   this->regularisation_weight = alpha1;
+   this->regularisation_weight = _reg_weight;//alpha1
    //
    this->input_transformation=nifti_copy_nim_info(this->controlPointImage);
    this->input_transformation->data=(float *)malloc(this->node_number*this->image_dim*sizeof(float));

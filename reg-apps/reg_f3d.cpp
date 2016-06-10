@@ -14,8 +14,7 @@
 #include "_reg_f3d2.h"
 #include "reg_f3d.h"
 #include <float.h>
-#include <limits>
-//#include <libgen.h> //DO NOT WORK ON WINDOWS !
+//#include <libgen.h> //DOES NOT WORK ON WINDOWS !
 
 #ifdef _WIN32
 #   include <time.h>
@@ -75,12 +74,18 @@ void Usage(char *exec)
    reg_print_info(exec, "\t-sx <float>\t\tFinal grid spacing along the x axis in mm (in voxel if negative value) [5 voxels]");
    reg_print_info(exec, "\t-sy <float>\t\tFinal grid spacing along the y axis in mm (in voxel if negative value) [sx value]");
    reg_print_info(exec, "\t-sz <float>\t\tFinal grid spacing along the z axis in mm (in voxel if negative value) [sx value]");
+#ifdef BUILD_DEV
+   reg_print_info(exec, "\t-lin \t\t\tUse linear interpolation for the parametrisation, cubic B-Spline by default");
+#endif
    reg_print_info(exec, "");
    reg_print_info(exec, "*** Regularisation options:");
    reg_print_info(exec, "\t-be <float>\t\tWeight of the bending energy (second derivative of the transformation) penalty term [0.001]");
    reg_print_info(exec, "\t-le <float>\t\tWeight of first order penalty term (symmetric and anti-symmetric part of the Jacobian) [0.01]");
    reg_print_info(exec, "\t-jl <float>\t\tWeight of log of the Jacobian determinant penalty term [0.0]");
    reg_print_info(exec, "\t-noAppJL\t\tTo not approximate the JL value only at the control point position");
+#ifdef BUILD_DEV
+   reg_print_info(exec, "\t-pe <float>\t\tWeight of node pairwise distance based on 6-neighbor in 3D [0.0]");
+#endif
    reg_print_info(exec, "");
    reg_print_info(exec, "*** Measure of similarity options:");
    reg_print_info(exec, "*** NMI with 64 bins is used expect if specified otherwise");
@@ -93,8 +98,8 @@ void Usage(char *exec)
    reg_print_info(exec, "\t-lncc <tp> <float>\tLNCC. Standard deviation of the Gaussian kernel for the specified timepoint");
    reg_print_info(exec, "\t--ssd\t\t\tSSD. Used for all time points");
    reg_print_info(exec, "\t-ssd <tp>\t\tSSD. Used for the specified timepoint");
-   reg_print_info(exec, "\t--mind <offset>\t\t\tMIND and the offset to use to compute the descriptor");
-   reg_print_info(exec, "\t--mindssc <offset>\t\tMIND-SCC and the offset to use to compute the descriptor");
+   reg_print_info(exec, "\t--mind <offset>\t\tMIND and the offset to use to compute the descriptor");
+   reg_print_info(exec, "\t--mindssc <offset>\tMIND-SCC and the offset to use to compute the descriptor");
    reg_print_info(exec, "\t--kld\t\t\tKLD. Used for all time points");
    reg_print_info(exec, "\t-kld <tp>\t\tKLD. Used for the specified timepoint");
    reg_print_info(exec, "\t* For the Kullback–Leibler divergence, reference and floating are expected to be probabilities");
@@ -108,6 +113,9 @@ void Usage(char *exec)
    reg_print_info(exec, "\t-nopy\t\t\tDo not use a pyramidal approach");
    reg_print_info(exec, "\t-noConj\t\t\tTo not use the conjuage gradient optimisation but a simple gradient ascent");
    reg_print_info(exec, "\t-pert <int>\t\tTo add perturbation step(s) after each optimisation scheme");
+#ifdef BUILD_DEV
+   reg_print_info(exec, "\t-disc_init\t\tUse a discrete optimisation to initialise the transformation");
+#endif
    reg_print_info(exec, "");
    reg_print_info(exec, "*** F3D2 options:");
    reg_print_info(exec, "\t-vel \t\t\tUse a velocity field integration to generate the deformation");
@@ -148,7 +156,7 @@ void Usage(char *exec)
    reg_print_info(exec, "\t-voff\t\t\tTo turn verbose off");
 #ifdef _GIT_HASH
    reg_print_info(exec, "");
-   reg_print_info(exec, "\t--version\t\tPrint current source code git hash key and exit");
+   reg_print_info(exec, "\t--version\t\tPrint current source code git hash and exit");
    sprintf(text, "\t\t\t\t(%s)" ,_GIT_HASH);
    reg_print_info(exec, text);
 #endif
@@ -224,7 +232,7 @@ int main(int argc, char **argv)
       reg_print_info((argv[0]), "Command line:");
       sprintf(text, "\t");
       for(int i=0; i<argc; i++)
-         sprintf(text, "%s %s", text, argv[i]);
+         sprintf(text+strlen(text), " %s", argv[i]);
       reg_print_info((argv[0]), text);
       reg_print_info((argv[0]), "");
 #ifdef NDEBUG
@@ -777,11 +785,6 @@ int main(int argc, char **argv)
       outputWarpedImageName=(char *)"outputResult.nii";
    memset(outputWarpedImage[0]->descrip, 0, 80);
    strcpy (outputWarpedImage[0]->descrip,"Warped image using NiftyReg (reg_f3d)");
-   //      if(strcmp("NiftyReg F3D SYM", REG->GetExecutableName())==0)
-   //      {
-   //         strcpy (outputWarpedImage[0]->descrip,"Warped image using NiftyReg (reg_f3d_sym)");
-   //         strcpy (outputWarpedImage[1]->descrip,"Warped image using NiftyReg (reg_f3d_sym)");
-   //      }
    if(strcmp("NiftyReg F3D2", REG->GetExecutableName())==0)
    {
       strcpy (outputWarpedImage[0]->descrip,"Warped image using NiftyReg (reg_f3d2)");
