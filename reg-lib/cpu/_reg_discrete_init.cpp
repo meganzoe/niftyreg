@@ -141,7 +141,7 @@ void reg_discrete_init::GetDiscretisedMeasure()
                                 this->discretised_measures,
                                 this->discrete_radius,
                                 this->discrete_increment,
-                                this->regularisation_weight);
+                                (1-this->regularisation_weight));
     //Let's put the values positive for the mrf
     for(int i=0;i<(this->node_number*this->label_nD_num);i++) {
         this->discretised_measures[i]=-this->discretised_measures[i];
@@ -346,7 +346,7 @@ void reg_discrete_init::GetRegularisedMeasure()
                size_t measure_index = node * this->label_nD_num + label;
                this->regularised_measures[measure_index] =
                      this->discretised_measures[measure_index] +
-                     (1.0 - this->regularisation_weight) * (
+                     this->regularisation_weight * (
                      reg_pow2(XX_x + valX * _basisXX) +
                      reg_pow2(XX_y + valY * _basisXX) +
                      reg_pow2(XX_z + valZ * _basisXX) +

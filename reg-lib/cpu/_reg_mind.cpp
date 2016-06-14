@@ -283,8 +283,8 @@ void GetMINDSSCImageDesciptor_core(nifti_image* inputImage,
    shiftedImage->data = (void *)malloc(shiftedImage->nvox*shiftedImage->nbyper);
 
    // Define the sigma for the convolution
-   float sigma = -0.5;// negative value denotes voxel width
-   //float sigma = -1.0;// negative value denotes voxel width
+   //float sigma = -0.5;// negative value denotes voxel width
+   float sigma = -1.5;// negative value denotes voxel width
 
    //2D version
    int samplingNbr = (currentInputImage->nz > 1) ? 6 : 2;

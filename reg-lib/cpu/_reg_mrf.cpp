@@ -882,7 +882,7 @@ void reg_mrf::GetRegularisation()
       }
 
       //fast distance transform
-      //It is were the regularisation is calculated
+      //It is where the regularisation is calculated
       dt3x(cost1,inds,this->label_1D_num,0,0,0);
 
       //add mincost to parent node
