@@ -1354,8 +1354,8 @@ void reg_f3d<T>::DiscreteInitialisation()
       // Create and initialise the discretisation initialisation object
       int discrete_increment=3;
       int discretisation_radius=18;
-#ifndef NDEBUG
       char text[255];
+#ifndef NDEBUG
       sprintf(text, "discrete_increment value is %u", discrete_increment);
       reg_print_msg_debug(text);
       sprintf(text, "discretisation_radius value is %u", discretisation_radius);
@@ -1396,7 +1396,6 @@ void reg_f3d<T>::DiscreteInitialisation()
          nifti_image_free(MIND_warImg);
       delete ssdMeasure;
 
-      //char text[255];
       sprintf(text, "Discrete initialisation done");
       reg_print_info(this->executableName, text);
    }

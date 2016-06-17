@@ -279,7 +279,8 @@ void reg_mrf::Initialise()
    int num_neighbours=this->controlPointImage->nz > 1 ? 6 : 4;
 
    this->GetGraph(edgeWeightMatrix, index_neighbours);
-   this->GetPrimsMST(edgeWeightMatrix, index_neighbours, num_vertices, num_neighbours, true);
+   //this->GetPrimsMST(edgeWeightMatrix, index_neighbours, num_vertices, num_neighbours, true);
+   this->GetPrimsMST(edgeWeightMatrix, index_neighbours, num_vertices, num_neighbours, false);
    free(edgeWeightMatrix);
    free(index_neighbours);
    this->initialised = true;
@@ -639,7 +640,9 @@ void GetGraph_core3D(nifti_image* controlPointGridImage,
    } //cpz
    //
    //
+
    //normalise edgeweights by stddev of image ???????
+   /*
    float stdim=reg_tools_getSTDValue(refImage);
 
    for(int i=0;i<node_number*6;i++){
@@ -648,6 +651,7 @@ void GetGraph_core3D(nifti_image* controlPointGridImage,
    for(int i=0;i<node_number*6;i++){
       edgeWeightMatrix[i]=-exp(-edgeWeightMatrix[i]/(2.0f*stdim));
    }
+   */
    //DEBUG
    //for(int i=0;i<num_vertices*6;i++){
    //    edgeWeightMatrix[i]/=voxelBlockNumber;
@@ -761,8 +765,8 @@ void reg_mrf::GetPrimsMST(float *edgeWeightMatrix,
       addedToMST[i]=false;
    }
    addedToMST[currentNode]=true;
-   std::pair<short,int>* treeLevel=new std::pair<short,int>[num_vertices];
-   treeLevel[currentNode]=std::pair<short,int>(0,currentNode);
+   std::pair<int,int>* treeLevel=new std::pair<int,int>[num_vertices];
+   treeLevel[currentNode]=std::pair<int,int>(0,currentNode);
 
    //int num_neighbours=this->controlPointImage->nz > 1 ? 6 : 4;
 
@@ -805,7 +809,7 @@ void reg_mrf::GetPrimsMST(float *edgeWeightMatrix,
             currentNode=bestEdge.endIndex;
             addedToMST[bestEdge.endIndex]=true;
             this->parentsList[bestEdge.endIndex]=bestEdge.startIndex;
-            treeLevel[bestEdge.endIndex]=std::pair<short,int>(treeLevel[bestEdge.startIndex].first+1,bestEdge.endIndex);
+            treeLevel[bestEdge.endIndex]=std::pair<int,int>(treeLevel[bestEdge.startIndex].first+1,bestEdge.endIndex);
          }
       }
    }
@@ -828,6 +832,32 @@ void reg_mrf::GetRegularisation()
      Similarity cost for each node and label has to be given as input.
     */
 
+    float* fieldPtrX = (float *)malloc(this->controlPointImage->nvox*sizeof(float));
+    memcpy(fieldPtrX,this->controlPointImage->data,this->controlPointImage->nvox*sizeof(float));
+    float *fieldPtrY=&fieldPtrX[this->node_number];
+    float *fieldPtrZ=&fieldPtrY[this->node_number];
+    // Define the transformation matrices
+    mat44 *grid_mm2vox = &this->controlPointImage->qto_ijk;
+    if(this->controlPointImage->sform_code>0)
+        grid_mm2vox = &this->controlPointImage->sto_ijk;
+    float voxel[3], milli[3];
+    int index=0;
+    for(int z=0; z<this->controlPointImage->nz; ++z){
+        for(int y=0; y<this->controlPointImage->ny; ++y){
+            for(int x=0; x<this->controlPointImage->nx; ++x){
+                milli[0] = fieldPtrX[index];
+                milli[1] = fieldPtrY[index];
+                milli[2] = fieldPtrZ[index];
+                reg_mat44_mul(grid_mm2vox, milli,voxel);
+                fieldPtrX[index] = (voxel[0] - x)*this->controlPointImage->dx/this->referenceImage->dx;
+                fieldPtrY[index] = (voxel[1] - y)*this->controlPointImage->dy/this->referenceImage->dy;
+                fieldPtrZ[index] = (voxel[2] - z)*this->controlPointImage->dz/this->referenceImage->dz;
+                ++index;
+            }
+        }
+    }
+
+   //
    //buffer variable
    float *cost1=new float[this->label_nD_num];
    float *vals=new float[this->label_nD_num];
@@ -862,8 +892,8 @@ void reg_mrf::GetRegularisation()
    }
 
    //weight of the regularisation - constant weight
-   //float edgew=this->regularisation_weight + std::numeric_limits<float>::epsilon();
-   //float edgew1=1.0f/edgew;
+   float edgew=1;
+   float edgew1=1.0f/edgew;
 
    //calculate mst-cost
    for(int i=(this->node_number-1);i>0;i--){ //do for each control point
@@ -872,8 +902,8 @@ void reg_mrf::GetRegularisation()
       //retreive the parent node of the child
       int oparent=this->parentsList[ochild];
       //retreive the weight of the edge between oparent and ochild
-      float edgew=this->edgeWeight[ochild];
-      float edgew1=1.0f/edgew;
+      //float edgew=this->edgeWeight[ochild]+std::numeric_limits<float>::epsilon();
+      //float edgew1=1.0f/edgew;
 
       for(int l=0;l<this->label_nD_num;l++){
          //matrix = discretisedValue (first dimension displacement label, second dim. control point)
@@ -883,7 +913,14 @@ void reg_mrf::GetRegularisation()
 
       //fast distance transform
       //It is where the regularisation is calculated
-      dt3x(cost1,inds,this->label_1D_num,0,0,0);
+      float dx = (fieldPtrX[oparent]-fieldPtrX[ochild])/(float)this->discrete_increment;
+      float dy = (fieldPtrY[oparent]-fieldPtrY[ochild])/(float)this->discrete_increment;
+      float dz = (fieldPtrZ[oparent]-fieldPtrZ[ochild])/(float)this->discrete_increment;
+//      float dx = (fieldPtrX[oparent]-fieldPtrX[ochild]);
+//      float dy = (fieldPtrY[oparent]-fieldPtrY[ochild]);
+//      float dz = (fieldPtrZ[oparent]-fieldPtrZ[ochild]);
+
+      dt3x(cost1,inds,this->label_1D_num,dx,dy,dz);
 
       //add mincost to parent node
       for(int l=0;l<this->label_nD_num;l++){
@@ -897,14 +934,20 @@ void reg_mrf::GetRegularisation()
       int ochild=this->orderedList[i];
       int oparent=this->parentsList[ochild];
       //retreive the weight of the edge between oparent and ochild
-      float edgew=this->edgeWeight[ochild];
-      float edgew1=1.0f/edgew;
+      //float edgew=this->edgeWeight[ochild] + std::numeric_limits<float>::epsilon();
+      //float edgew1=1.0f/edgew;
 
       for(int l=0;l<this->label_nD_num;l++){
          cost1[l]=(this->regularised_cost[oparent*this->label_nD_num+l]-message[ochild*this->label_nD_num+l]+message[oparent*this->label_nD_num+l])*edgew;
       }
+      float dx = (fieldPtrX[oparent]-fieldPtrX[ochild])/(float)this->discrete_increment;
+      float dy = (fieldPtrY[oparent]-fieldPtrY[ochild])/(float)this->discrete_increment;
+      float dz = (fieldPtrZ[oparent]-fieldPtrZ[ochild])/(float)this->discrete_increment;
+//      float dx = (fieldPtrX[oparent]-fieldPtrX[ochild]);
+//      float dy = (fieldPtrY[oparent]-fieldPtrY[ochild]);
+//      float dz = (fieldPtrZ[oparent]-fieldPtrZ[ochild]);
 
-      dt3x(cost1,inds,this->label_1D_num,0,0,0);
+      dt3x(cost1,inds,this->label_1D_num,dx,dy,dz);
       for(int l=0;l<this->label_nD_num;l++){
          message[ochild*this->label_nD_num+l]=cost1[l]*edgew1;
       }
@@ -915,10 +958,11 @@ void reg_mrf::GetRegularisation()
       this->regularised_cost[i]+=message[i];
    }
 
-   delete message;
-   delete cost1;
-   delete vals;
-   delete inds;
+   delete[] message;
+   delete[] cost1;
+   delete[] vals;
+   delete[] inds;
+   free(fieldPtrX);
 }
 /*****************************************************/
 /*****************************************************/

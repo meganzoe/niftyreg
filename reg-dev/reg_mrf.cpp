@@ -98,90 +98,115 @@ int main(int argc, char **argv)
                       0.f);
 
     free(maskImage);
-    //nifti_image_free(deformationFieldImage);
     /////////////////////////////////////////////////////////////////////////////////////////
     //////////////////////////LETS DO MULTI-RESOLUTION///////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////
     /// WE COULD DO BETTER BECAUSE FOR THE MOMENT WE RESAMPLE TOO MANY TIMES ////////////////
     /////////////////////////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////
-    //int nbLevel = 5;
-    //int discrete_radiusArray[] = {30,20,12,6,2};
-    //int discrete_incrementArray[] = {5,4,3,2,1};
-    //int grid_stepArray[] = {8,7,6,5,4};
-    int nbLevel = 1;
-    int discrete_radiusArray[] = {18};
-    int discrete_incrementArray[] = {3};
-    int grid_stepArray[] = {8};//
+    int nbLevel = 5;
+    int discrete_radiusArray[] = {18,10,8,3,2};
+    int discrete_incrementArray[] = {3,2,2,1,1};
+    int grid_stepArray[] = {7,6,5,4,3};
+    // Create control point grid image
+    float grid_step_mm[3]={grid_stepArray[0]*referenceImage->dx,
+                           grid_stepArray[0]*referenceImage->dy,
+                           grid_stepArray[0]*referenceImage->dz};
+    nifti_image *controlPointImage = NULL;
+    reg_createControlPointGrid<float>(&controlPointImage,
+                                      referenceImage,
+                                      grid_step_mm);
+
+    memset(controlPointImage->data,0,controlPointImage->nvox*controlPointImage->nbyper);
+    reg_tools_multiplyValueToImage(controlPointImage,controlPointImage,0.f);
+    reg_getDeformationFromDisplacement(controlPointImage);
+    controlPointImage->intent_p1=LIN_SPLINE_GRID;
+
+
+    // Create an empty mask
+    int *mask = (int *)calloc(referenceImage->nvox, sizeof(int));
+
+    // Create a deformation field
+    nifti_image *deformationField = nifti_copy_nim_info(referenceImage);
+    deformationField->dim[0]=deformationField->ndim=5;
+    deformationField->dim[1]=deformationField->nx=referenceImage->nx;
+    deformationField->dim[2]=deformationField->ny=referenceImage->ny;
+    deformationField->dim[3]=deformationField->nz=referenceImage->nz;
+    deformationField->dim[4]=deformationField->nt=1;
+    deformationField->pixdim[4]=deformationField->dt=1.0;
+    if(referenceImage->nz==1)
+        deformationField->dim[5]=deformationField->nu=2;
+    else deformationField->dim[5]=deformationField->nu=3;
+    deformationField->pixdim[5]=deformationField->du=1.0;
+    deformationField->dim[6]=deformationField->nv=1;
+    deformationField->pixdim[6]=deformationField->dv=1.0;
+    deformationField->dim[7]=deformationField->nw=1;
+    deformationField->pixdim[7]=deformationField->dw=1.0;
+    deformationField->nvox =
+            (size_t)deformationField->nx *
+            (size_t)deformationField->ny *
+            (size_t)deformationField->nz *
+            (size_t)deformationField->nt *
+            (size_t)deformationField->nu;
+    deformationField->nbyper = sizeof(float);
+    deformationField->datatype = NIFTI_TYPE_FLOAT32;
+    deformationField->data = (void *)calloc(deformationField->nvox,
+                                            deformationField->nbyper);
+    deformationField->intent_code=NIFTI_INTENT_VECTOR;
+    memset(deformationField->intent_name, 0, 16);
+    strcpy(deformationField->intent_name,"NREG_TRANS");
+    deformationField->intent_p1=DEF_FIELD;
+    deformationField->scl_slope=1.f;
+    deformationField->scl_inter=0.f;
+
+    int mind_length = 12;
+    //MINDSSC image
+    nifti_image *MINDSSC_refimg = nifti_copy_nim_info(referenceImage);
+    MINDSSC_refimg->ndim = MINDSSC_refimg->dim[0] = 4;
+    MINDSSC_refimg->nt = MINDSSC_refimg->dim[4] = mind_length;
+    MINDSSC_refimg->nvox = MINDSSC_refimg->nvox*mind_length;
+    MINDSSC_refimg->data=(void *)calloc(MINDSSC_refimg->nvox,MINDSSC_refimg->nbyper);
+    // Compute the MIND descriptor
+    GetMINDSSCImageDesciptor(referenceImage,MINDSSC_refimg, mask, 2, 0);
 
     for(int currentLevel=0;currentLevel<nbLevel;currentLevel++) {
-        // Create control point grid image
-        int grid_step = grid_stepArray[currentLevel];
-        float grid_step_mm[3]={grid_step*referenceImage->dx,
-                               grid_step*referenceImage->dy,
-                               grid_step*referenceImage->dz};
-        nifti_image *controlPointImage = NULL;
-        reg_createControlPointGrid<float>(&controlPointImage,
-                                          referenceImage,
-                                          grid_step_mm);
 
-        memset(controlPointImage->data,0,controlPointImage->nvox*controlPointImage->nbyper);
-        reg_tools_multiplyValueToImage(controlPointImage,controlPointImage,0.f);
-        reg_getDeformationFromDisplacement(controlPointImage);
-        controlPointImage->intent_p1=LIN_SPLINE_GRID;
+        // Refine the grid using linear interpolation
+        if(currentLevel>0)
+        {
+            // Create the new grid
+            grid_step_mm[0]=grid_stepArray[currentLevel]*referenceImage->dx;
+            grid_step_mm[1]=grid_stepArray[currentLevel]*referenceImage->dy;
+            grid_step_mm[2]=grid_stepArray[currentLevel]*referenceImage->dz;
+            nifti_image *newControlPointImage = NULL;
+            reg_createControlPointGrid<float>(&newControlPointImage,
+                                              referenceImage,
+                                              grid_step_mm);
+            newControlPointImage->intent_p1=LIN_SPLINE_GRID;
+            // Create an identity deformation field
+            nifti_image *defCP = nifti_copy_nim_info(newControlPointImage);
+            defCP->data = (void *)calloc(defCP->nvox, defCP->nbyper);
+            reg_getDeformationFromDisplacement(defCP);
+            reg_getDisplacementFromDeformation(controlPointImage);
+            // Resample the control point grid image
+            reg_resampleImage(controlPointImage,
+                              newControlPointImage,
+                              defCP,
+                              mask,
+                              1,
+                              0);
+            nifti_image_free(defCP);
+            reg_getDeformationFromDisplacement(newControlPointImage);
+            // Rename the new control point grid
+            nifti_image_free(controlPointImage);
+            controlPointImage = nifti_copy_nim_info(newControlPointImage);
+            controlPointImage->data = newControlPointImage->data;
+            newControlPointImage->data=NULL;
+            // Free the temporary grid image
+            nifti_image_free(newControlPointImage);
+        }
 
-        // Create an empty mask
-        int *mask = (int *)calloc(referenceImage->nvox, sizeof(int));
 
-        // Create a deformation field
-        nifti_image *deformationField = nifti_copy_nim_info(referenceImage);
-        deformationField->dim[0]=deformationField->ndim=5;
-        deformationField->dim[1]=deformationField->nx=referenceImage->nx;
-        deformationField->dim[2]=deformationField->ny=referenceImage->ny;
-        deformationField->dim[3]=deformationField->nz=referenceImage->nz;
-        deformationField->dim[4]=deformationField->nt=1;
-        deformationField->pixdim[4]=deformationField->dt=1.0;
-        if(referenceImage->nz==1)
-            deformationField->dim[5]=deformationField->nu=2;
-        else deformationField->dim[5]=deformationField->nu=3;
-        deformationField->pixdim[5]=deformationField->du=1.0;
-        deformationField->dim[6]=deformationField->nv=1;
-        deformationField->pixdim[6]=deformationField->dv=1.0;
-        deformationField->dim[7]=deformationField->nw=1;
-        deformationField->pixdim[7]=deformationField->dw=1.0;
-        deformationField->nvox =
-                (size_t)deformationField->nx *
-                (size_t)deformationField->ny *
-                (size_t)deformationField->nz *
-                (size_t)deformationField->nt *
-                (size_t)deformationField->nu;
-        deformationField->nbyper = sizeof(float);
-        deformationField->datatype = NIFTI_TYPE_FLOAT32;
-        deformationField->data = (void *)calloc(deformationField->nvox,
-                                                deformationField->nbyper);
-        deformationField->intent_code=NIFTI_INTENT_VECTOR;
-        memset(deformationField->intent_name, 0, 16);
-        strcpy(deformationField->intent_name,"NREG_TRANS");
-        deformationField->intent_p1=DEF_FIELD;
-        deformationField->scl_slope=1.f;
-        deformationField->scl_inter=0.f;
-        reg_spline_getDeformationField(controlPointImage,
-                                       deformationField,
-                                       mask,
-                                       false, //composition
-                                       true // bspline
-                                       );
-        //
-        int mind_length = 12;
-        //MINDSSC image
-        nifti_image *MINDSSC_refimg = nifti_copy_nim_info(referenceImage);
-        MINDSSC_refimg->ndim = MINDSSC_refimg->dim[0] = 4;
-        MINDSSC_refimg->nt = MINDSSC_refimg->dim[4] = mind_length;
-        MINDSSC_refimg->nvox = MINDSSC_refimg->nvox*mind_length;
-        MINDSSC_refimg->data=(void *)calloc(MINDSSC_refimg->nvox,MINDSSC_refimg->nbyper);
-        // Compute the MIND descriptor
-        GetMINDSSCImageDesciptor(referenceImage,MINDSSC_refimg, mask, 2, 0);
-        
         //MINDSSC image
         nifti_image *MINDSSC_warimg = nifti_copy_nim_info(warpedImage);
         MINDSSC_warimg->ndim = MINDSSC_warimg->dim[0] = 4;
@@ -203,15 +228,25 @@ int main(int argc, char **argv)
                                       NULL,
                                       NULL);
 
+        float alpha = grid_stepArray[currentLevel]/(regularisationWeight*discrete_incrementArray[currentLevel]);
+
+//#ifndef NDEBUG
+        char text[255];
+        reg_print_msg_debug("alpha value:");
+        sprintf(text, "Active time point:");
+        sprintf(text, "%f ", alpha);
+        reg_print_msg_debug(text);
+//#endif
 
         reg_mrf* reg_mrfObject = new reg_mrf(ssdMeasure,
                                              referenceImage,
                                              controlPointImage,
                                              discrete_radiusArray[currentLevel],
                                              discrete_incrementArray[currentLevel],
-                                             regularisationWeight);
+                                             alpha);
 
         reg_mrfObject->Run();
+
         reg_spline_getDeformationField(controlPointImage,
                                        deformationField,
                                        mask,
@@ -228,28 +263,31 @@ int main(int argc, char **argv)
                           1,
                           0.f);
 
-        reg_getDisplacementFromDeformation(deformationField);
-        deformationField->dim[4] = deformationField->nt = deformationField->nu;
-        deformationField->dim[5] = deformationField->nu = 1;
-        deformationField->dim[0] = deformationField->ndim = 4;
-
-        warpedImage->cal_min = floatingImage->cal_min;
-        warpedImage->cal_max = floatingImage->cal_max;
-        //
+        reg_affine_getDeformationField(&affineMatrix,
+                                       deformationFieldImage,
+                                       false,
+                                       NULL);
+        //DEBUG
         reg_io_WriteImageFile(warpedImage, outputImageName);
+        //DEBUG
         //Mr Propre
         delete reg_mrfObject;
-        free(mask);
-        nifti_image_free(MINDSSC_refimg);
+        delete ssdMeasure;
         nifti_image_free(MINDSSC_warimg);
-        nifti_image_free(controlPointImage);
-        nifti_image_free(deformationField);
+        MINDSSC_warimg=NULL;
     }
+
+    warpedImage->cal_min = floatingImage->cal_min;
+    warpedImage->cal_max = floatingImage->cal_max;
     //Mr Propre
     nifti_image_free(referenceImage);
     nifti_image_free(floatingImage);
     nifti_image_free(warpedImage);
+    nifti_image_free(deformationField);
+    nifti_image_free(controlPointImage);
     nifti_image_free(deformationFieldImage);
+    free(mask);
+    nifti_image_free(MINDSSC_refimg);
 
     time_t end;
     time(&end);

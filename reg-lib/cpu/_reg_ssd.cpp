@@ -32,7 +32,7 @@ reg_ssd::reg_ssd(bool sad)
         this->useSAD = true;
     }
 #ifndef NDEBUG
-    reg_print_msg_debug("reg_ssd constructor called");
+    reg_print_msg_debug("reg_ssd(bool) constructor called");
 #endif
 }
 /* *************************************************************** */

@@ -15,6 +15,7 @@
 #define _REG_MRF_H
 
 #include "_reg_measure.h"
+#include "_reg_localTrans.h"
 #include "_reg_localTrans_regul.h"
 #include <cmath>
 #include <queue>
@@ -26,8 +27,8 @@ struct Edge{
    int startIndex;
    int endIndex;
    friend bool operator<(Edge a,Edge b){
-      return a.weight>b.weight;
-      //return a.weight<b.weight;
+      //return a.weight>b.weight;
+      return a.weight<b.weight;
    }
 };
 
