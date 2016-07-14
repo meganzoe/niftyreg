@@ -55,6 +55,7 @@ void reg_checkAndCorrectDimension(nifti_image *image)
                                             image->dz,
                                             image->qfac);
       image->qto_ijk=nifti_mat44_inverse(image->qto_xyz);
+      image->qform_code = 1;
    }
    // Set the voxel spacing to millimeters
    if(image->xyz_units==NIFTI_UNITS_MICRON)

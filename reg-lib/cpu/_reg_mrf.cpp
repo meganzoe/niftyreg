@@ -45,6 +45,8 @@ reg_mrf::reg_mrf(int _discrete_radius,
     //regulatization - optimization
     this->regularised_cost= (float *)malloc(this->node_number*this->label_nD_num*sizeof(float));
     this->optimal_label_index=(int *)calloc(this->node_number,sizeof(int));
+
+    this->initialised = false;
 }
 /*****************************************************/
 reg_mrf::reg_mrf(reg_measure *_measure,
@@ -831,9 +833,11 @@ void reg_mrf::GetRegularisation()
      Fast distance transform uses squared differences.
      Similarity cost for each node and label has to be given as input.
     */
-
-    float* fieldPtrX = (float *)malloc(this->controlPointImage->nvox*sizeof(float));
-    memcpy(fieldPtrX,this->controlPointImage->data,this->controlPointImage->nvox*sizeof(float));
+    nifti_image* fieldImg = nifti_copy_nim_info(this->controlPointImage);
+    fieldImg->data = (void *)malloc(fieldImg->nvox * fieldImg->nbyper);
+    memcpy(fieldImg->data, this->controlPointImage->data, fieldImg->nvox*fieldImg->nbyper);
+    reg_getDisplacementFromDeformation(fieldImg);
+    float *fieldPtrX = static_cast<float *> (fieldImg->data);
     float *fieldPtrY=&fieldPtrX[this->node_number];
     float *fieldPtrZ=&fieldPtrY[this->node_number];
     // Define the transformation matrices
@@ -848,10 +852,13 @@ void reg_mrf::GetRegularisation()
                 milli[0] = fieldPtrX[index];
                 milli[1] = fieldPtrY[index];
                 milli[2] = fieldPtrZ[index];
-                reg_mat44_mul(grid_mm2vox, milli,voxel);
-                fieldPtrX[index] = (voxel[0] - x)*this->controlPointImage->dx/this->referenceImage->dx;
-                fieldPtrY[index] = (voxel[1] - y)*this->controlPointImage->dy/this->referenceImage->dy;
-                fieldPtrZ[index] = (voxel[2] - z)*this->controlPointImage->dz/this->referenceImage->dz;
+                //reg_mat44_mul(grid_mm2vox, milli,voxel);
+                //fieldPtrX[index] = (voxel[0] - x)*this->controlPointImage->dx/this->referenceImage->dx;
+                //fieldPtrY[index] = (voxel[1] - y)*this->controlPointImage->dy/this->referenceImage->dy;
+                //fieldPtrZ[index] = (voxel[2] - z)*this->controlPointImage->dz/this->referenceImage->dz;
+                fieldPtrX[index] = (milli[0])/this->referenceImage->dx;
+                fieldPtrY[index] = (milli[1])/this->referenceImage->dy;
+                fieldPtrZ[index] = (milli[2])/this->referenceImage->dz;
                 ++index;
             }
         }
@@ -962,7 +969,7 @@ void reg_mrf::GetRegularisation()
    delete[] cost1;
    delete[] vals;
    delete[] inds;
-   free(fieldPtrX);
+   nifti_image_free(fieldImg);
 }
 /*****************************************************/
 /*****************************************************/
@@ -1001,6 +1008,38 @@ void dt1sq(float *val,int* ind,int len,float offset,int k,int* v,float* z,float*
       ind[q*k]=ind1[v[j]];
       val[q*k]=(q-offset-v[j])*(q-offset-v[j])+f[v[j]];
    }
+
+    /*
+    float INF=1e10;
+
+    int j=0;
+    z[0]=-INF;
+    z[1]=INF;
+    v[0]=0;
+    for(int q=1;q<len;q++){
+        float s=((val[q*k]+pow((float)q+offset,2.0))-(val[v[j]*k]+pow((float)v[j]+offset,2.0)))/(2.0*(float)(q-v[j]));
+        while(s<=z[j]){
+            j--;
+            s=((val[q*k]+pow((float)q+offset,2.0))-(val[v[j]*k]+pow((float)v[j]+offset,2.0)))/(2.0*(float)(q-v[j]));
+        }
+        j++;
+        v[j]=q;
+        z[j]=s;
+        z[j+1]=INF;
+    }
+    j=0;
+    for(int q=0;q<len;q++){
+        f[q]=val[q*k]; //needs to be added to fastDT2 otherwise incorrect
+        ind1[q]=ind[q*k];
+    }
+    for(int q=0;q<len;q++){
+        while(z[j+1]<q){
+            j++;
+        }
+        ind[q*k]=ind1[v[j]];//ind[v[j]*k];
+        val[q*k]=pow((float)q-((float)v[j]+offset),2.0)+f[v[j]];//val[v[j]*k];
+    }
+    */
 }
 
 void dt3x(float* r,int* indr,int rl,float dx,float dy,float dz){
@@ -1043,3 +1082,134 @@ void dt3x(float* r,int* indr,int rl,float dx,float dy,float dz){
    delete []v;
    delete []z;
 }
+
+/*
+//Public version
+void dt1sq(float *val,int* ind,int len,float offset,int k,int* v,float* z,float* f,int* ind1){
+    float INF=1e10;
+
+    int j=0;
+    z[0]=-INF;
+    z[1]=INF;
+    v[0]=0;
+    for(int q=1;q<len;q++){
+        float s=((val[q*k]+pow((float)q+offset,2.0))-(val[v[j]*k]+pow((float)v[j]+offset,2.0)))/(2.0*(float)(q-v[j]));
+        while(s<=z[j]){
+            j--;
+            s=((val[q*k]+pow((float)q+offset,2.0))-(val[v[j]*k]+pow((float)v[j]+offset,2.0)))/(2.0*(float)(q-v[j]));
+        }
+        j++;
+        v[j]=q;
+        z[j]=s;
+        z[j+1]=INF;
+    }
+    j=0;
+    for(int q=0;q<len;q++){
+        f[q]=val[q*k]; //needs to be added to fastDT2 otherwise incorrect
+        ind1[q]=ind[q*k];
+    }
+    for(int q=0;q<len;q++){
+        while(z[j+1]<q){
+            j++;
+        }
+        ind[q*k]=ind1[v[j]];//ind[v[j]*k];
+        val[q*k]=pow((float)q-((float)v[j]+offset),2.0)+f[v[j]];//val[v[j]*k];
+    }
+
+}
+
+void dt4x(float* r,int* indr,int rl,int lenint,float dx,float dy,float dz,float dq){
+    //rl is length of one side
+    for(int i=0;i<rl*rl*rl*lenint;i++){
+        indr[i]=i;
+    }
+    int* v=new int[rl]; //slightly faster if not intitialised in each loop
+    float* z=new float[rl+1];
+    float* f=new float[rl];
+    int* i1=new int[rl];
+
+    for(int q=0;q<lenint;q++){
+        for(int k=0;k<rl;k++){
+            for(int i=0;i<rl;i++){
+                dt1sq(r+i+k*rl*rl+q*rl*rl*rl,indr+i+k*rl*rl+q*rl*rl*rl,rl,-dx,rl,v,z,f,i1);//);
+            }
+        }
+    }
+    for(int q=0;q<lenint;q++){
+        for(int k=0;k<rl;k++){
+            for(int j=0;j<rl;j++){
+                dt1sq(r+j*rl+k*rl*rl+q*rl*rl*rl,indr+j*rl+k*rl*rl+q*rl*rl*rl,rl,-dy,1,v,z,f,i1);//);
+            }
+        }
+    }
+
+    for(int q=0;q<lenint;q++){
+        for(int j=0;j<rl;j++){
+            for(int i=0;i<rl;i++){
+                dt1sq(r+i+j*rl+q*rl*rl*rl,indr+i+j*rl+q*rl*rl*rl,rl,-dz,rl*rl,v,z,f,i1);//);
+            }
+        }
+    }
+
+    i1=new int[lenint];
+    f=new float[lenint];
+
+    v=new int[lenint];
+    z=new float[lenint+1];
+
+    for(int k=0;k<rl;k++){
+        for(int j=0;j<rl;j++){
+            for(int i=0;i<rl;i++){
+                dt1sq(r+i+j*rl+k*rl*rl,indr+i+j*rl+k*rl*rl,lenint,-dq,rl*rl*rl,v,z,f,i1);//);
+            }
+        }
+    }
+    delete []i1;
+    delete []f;
+
+    delete []v;
+    delete []z;
+
+
+
+
+
+}
+
+
+
+void dt3x(float* r,int* indr,int rl,float dx,float dy,float dz){
+    //rl is length of one side
+    for(int i=0;i<rl*rl*rl;i++){
+        indr[i]=i;
+    }
+    int* v=new int[rl]; //slightly faster if not intitialised in each loop
+    float* z=new float[rl+1];
+    float* f=new float[rl];
+    int* i1=new int[rl];
+
+    for(int k=0;k<rl;k++){
+        for(int i=0;i<rl;i++){
+            dt1sq(r+i+k*rl*rl,indr+i+k*rl*rl,rl,-dx,rl,v,z,f,i1);//);
+        }
+    }
+    for(int k=0;k<rl;k++){
+        for(int j=0;j<rl;j++){
+            dt1sq(r+j*rl+k*rl*rl,indr+j*rl+k*rl*rl,rl,-dy,1,v,z,f,i1);//);
+        }
+    }
+
+    for(int j=0;j<rl;j++){
+        for(int i=0;i<rl;i++){
+            dt1sq(r+i+j*rl,indr+i+j*rl,rl,-dz,rl*rl,v,z,f,i1);//);
+        }
+    }
+    delete []i1;
+    delete []f;
+
+    delete []v;
+    delete []z;
+
+
+}
+*/

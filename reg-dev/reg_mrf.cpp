@@ -17,16 +17,17 @@ int main(int argc, char **argv)
     time_t start;
     time(&start);
 
-    if(argc!=6) {
-        fprintf(stderr, "Usage: %s <refImage> <floatingImage> <regularisationWeight> <outputImageName> <initFile>\n", argv[0]);
+    if(argc!=7) {
+        fprintf(stderr, "Usage: %s <refImage> <floatingImage> <nbLevel> <regularisationWeight> <outputImageName> <initFile>\n", argv[0]);
         return EXIT_FAILURE;
     }
     //IO
     char *inputRefImageName=argv[1];
     char *inputFloImageName=argv[2];
-    float regularisationWeight=atof(argv[3]);
-    char *outputImageName=argv[4];
-    char *affineTransformationName=argv[5];
+    int nbLevel=atoi(argv[3]);
+    float regularisationWeight=atof(argv[4]);
+    char *outputImageName=argv[5];
+    char *affineTransformationName=argv[6];
 
     // Read reference image
     nifti_image *referenceImage = reg_io_ReadImageFile(inputRefImageName);
@@ -104,10 +105,11 @@ int main(int argc, char **argv)
     /// WE COULD DO BETTER BECAUSE FOR THE MOMENT WE RESAMPLE TOO MANY TIMES ////////////////
     /////////////////////////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////
-    int nbLevel = 5;
+    //int nbLevel = 5;//2
     int discrete_radiusArray[] = {18,10,8,3,2};
     int discrete_incrementArray[] = {3,2,2,1,1};
-    int grid_stepArray[] = {7,6,5,4,3};
+    //int grid_stepArray[] = {7,6,5,4,3};
+    int grid_stepArray[] = {8,7,6,5,4};
     // Create control point grid image
     float grid_step_mm[3]={grid_stepArray[0]*referenceImage->dx,
                            grid_stepArray[0]*referenceImage->dy,
@@ -155,6 +157,9 @@ int main(int argc, char **argv)
     deformationField->intent_code=NIFTI_INTENT_VECTOR;
     memset(deformationField->intent_name, 0, 16);
     strcpy(deformationField->intent_name,"NREG_TRANS");
+    // Initialise the deformation field with an identity transformation
+    reg_tools_multiplyValueToImage(deformationField,deformationField,0.f);
+    reg_getDeformationFromDisplacement(deformationField);
     deformationField->intent_p1=DEF_FIELD;
     deformationField->scl_slope=1.f;
     deformationField->scl_inter=0.f;
@@ -182,26 +187,34 @@ int main(int argc, char **argv)
             reg_createControlPointGrid<float>(&newControlPointImage,
                                               referenceImage,
                                               grid_step_mm);
+            memset(newControlPointImage->data,0,newControlPointImage->nvox*newControlPointImage->nbyper);
+            reg_tools_multiplyValueToImage(newControlPointImage,newControlPointImage,0.f);
+            reg_getDeformationFromDisplacement(newControlPointImage);
             newControlPointImage->intent_p1=LIN_SPLINE_GRID;
             // Create an identity deformation field
             nifti_image *defCP = nifti_copy_nim_info(newControlPointImage);
             defCP->data = (void *)calloc(defCP->nvox, defCP->nbyper);
             reg_getDeformationFromDisplacement(defCP);
-            reg_getDisplacementFromDeformation(controlPointImage);
+            // Create an empty maskCP
+            int *maskCP = (int *)calloc(newControlPointImage->nvox, sizeof(int));
+            //
             // Resample the control point grid image
+            reg_getDisplacementFromDeformation(controlPointImage);
+            reg_getDisplacementFromDeformation(newControlPointImage);
             reg_resampleImage(controlPointImage,
                               newControlPointImage,
                               defCP,
-                              mask,
+                              maskCP,
                               1,
                               0);
             nifti_image_free(defCP);
+            free(maskCP);
+            nifti_image_free(controlPointImage);
             reg_getDeformationFromDisplacement(newControlPointImage);
             // Rename the new control point grid
-            nifti_image_free(controlPointImage);
             controlPointImage = nifti_copy_nim_info(newControlPointImage);
-            controlPointImage->data = newControlPointImage->data;
-            newControlPointImage->data=NULL;
+            controlPointImage->data=(void *)malloc(controlPointImage->nvox*controlPointImage->nbyper);
+            memcpy(controlPointImage->data, newControlPointImage->data, controlPointImage->nvox*controlPointImage->nbyper);
             // Free the temporary grid image
             nifti_image_free(newControlPointImage);
         }
@@ -256,6 +269,11 @@ int main(int argc, char **argv)
 
         reg_defField_compose(deformationField,deformationFieldImage,mask);
 
+        // Initialise the deformation field with an identity transformation
+        reg_getDisplacementFromDeformation(deformationField);
+        reg_tools_multiplyValueToImage(deformationField,deformationField,0.f);
+        reg_getDeformationFromDisplacement(deformationField);
+
         reg_resampleImage(floatingImage,
                           warpedImage,
                           deformationFieldImage,
@@ -263,6 +281,9 @@ int main(int argc, char **argv)
                           1,
                           0.f);
 
+        reg_getDisplacementFromDeformation(deformationFieldImage);
+        reg_tools_multiplyValueToImage(deformationFieldImage,deformationFieldImage,0.f);
+        reg_getDeformationFromDisplacement(deformationFieldImage);
         reg_affine_getDeformationField(&affineMatrix,
                                        deformationFieldImage,
                                        false,

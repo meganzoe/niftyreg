@@ -27,8 +27,8 @@ struct Edge{
    int startIndex;
    int endIndex;
    friend bool operator<(Edge a,Edge b){
-      //return a.weight>b.weight;
-      return a.weight<b.weight;
+      return a.weight>b.weight;
+      //return a.weight<b.weight;
    }
 };
 
