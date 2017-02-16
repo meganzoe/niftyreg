@@ -4692,7 +4692,6 @@ void reg_spline_GetDeconvolvedCoefficents_core(nifti_image *img)
 /* *************************************************************** */
 void reg_spline_GetDeconvolvedCoefficents(nifti_image *img)
 {
-
    switch(img->datatype)
    {
    case NIFTI_TYPE_FLOAT32:
@@ -4706,6 +4705,349 @@ void reg_spline_GetDeconvolvedCoefficents(nifti_image *img)
       reg_print_msg_error("Only implemented for single or double precision images");
       reg_exit();
    }
+}
+/* *************************************************************** */
+/* *************************************************************** */
+template <class DTYPE>
+void S_IIR_order2 (DTYPE a1, DTYPE a2, DTYPE a3, DTYPE *x, DTYPE *y,
+                   size_t N, bool backward){
+   int n;
+   if(backward){
+      for (n=N-3; n > -1; --n)
+         y[n] = x[n] * a1 + y[n+1] * a2 + y[n+2] * a3;
+   }
+   else{
+      for (n=2; n < (int)N; ++n)
+         y[n] = x[n] * a1 + y[n-1] * a2 + y[n-2] * a3;
+   }
+}
+/* *************************************************************** */
+template <class DTYPE>
+DTYPE S_hc(int k, DTYPE cs, DTYPE r, DTYPE omega)
+{
+   if (k < 0) return 0.0;
+   if (omega == 0.0)
+      return cs * pow(r, (DTYPE )k) * (k+1);
+   else if (omega == M_PI)
+      return cs * pow(r, (DTYPE )k) * (k+1.) * (1. - 2.*(k % 2));
+   return cs * pow(r, (DTYPE) k) * sin(omega * (k+1.)) / sin(omega);
+}
+/* *************************************************************** */
+template <class DTYPE>
+DTYPE S_hs(int k, DTYPE cs, DTYPE rsq, DTYPE omega) {
+   DTYPE cssq;
+   DTYPE c0;
+   DTYPE gamma, rsupk;
+
+   cssq = cs * cs;
+   k = abs(k);
+   rsupk = pow(rsq, ((DTYPE ) k) / 2.0);
+   if (omega == 0.0) {
+      c0 = (1.+rsq)/ ((1.-rsq)*(1.-rsq)*(1.-rsq)) * cssq;
+      gamma = (1.-rsq) / (1.+rsq);
+      return c0 * rsupk * (1. + gamma * k);
+   }
+   if (omega == M_PI) {
+      c0 = (1+rsq)/ ((1.-rsq)*(1.-rsq)*(1.-rsq)) * cssq;
+      gamma = (1.-rsq) / (1.+rsq) * (1. - 2. * (k % 2));
+      return c0 * rsupk * (1. + gamma * k);
+   }
+   c0 = cssq * (1.0+rsq)/(1.0-rsq) / (1.-2.*rsq*cos(2.*omega) + rsq*rsq);
+   gamma = (1.0 - rsq)/ (1.0+rsq) / tan(omega);
+   return c0 * rsupk * (cos(omega*k) + gamma * sin(omega * k));
+}
+/* *************************************************************** */
+template <class DTYPE>
+int S_IIR_forback2 (DTYPE r, DTYPE omega, DTYPE *values, size_t number)
+{
+   DTYPE cs;
+   DTYPE yp0;
+   DTYPE yp1;
+   DTYPE rsq;
+   DTYPE diff;
+   DTYPE err;
+   DTYPE a2, a3;
+   size_t k;
+   DTYPE precision = 1e-6f;
+
+   if (r >= 1.0) return -2; /* z1 not less than 1 */
+
+   // Initialise memory for loop
+   DTYPE *tempValues = new DTYPE[number];
+   DTYPE *coeff = new DTYPE[number];
+
+   rsq = r * r;
+   a2 = 2. * r * cos(omega);
+   a3 = -rsq;
+   cs = 1. - 2. * r * cos(omega) + rsq;
+
+   // Fix starting values assuming mirror-symmetric boundary conditions.
+   yp0 = S_hc(0, cs, r, omega) * values[0];
+   k = 0;
+   precision *= precision;
+   do {
+      diff = S_hc(k+1, cs, r, omega);
+      yp0 += diff * values[k++];
+      err = diff * diff;
+   } while((err > precision) && (k < number));
+   if (k >= number) return -3;     /* sum did not converge */
+   tempValues[0] = yp0;
+
+   yp1 = S_hc(0, cs, r, omega) * values[1];
+   yp1 += S_hc(1, cs, r, omega) * values[0];
+   k=0;
+   do {
+      diff = S_hc(k+2, cs, r, omega);
+      yp1 += diff * values[k++];
+      err = diff * diff;
+   } while((err > precision) && (k < number));
+   if (k >= number) return -3;     /* sum did not converge */
+
+   tempValues[0] = yp0;
+   tempValues[1] = yp1;
+   S_IIR_order2(cs, a2, a3, values, tempValues, number, false);
+
+   // Fix starting values assuming mirror-symmetric boundary conditions.
+   yp0 = 0.0;
+   k = 0;
+   do {
+      diff = (S_hs(k, cs, rsq, omega) + S_hs(k+1, cs, rsq, omega));
+      yp0 += diff * values[number-1-k];
+      err = diff * diff;
+      k++;
+   } while((err > precision) && (k < number));
+   if (k >= number) return -3;     /* sum did not converge */
+
+   yp1 = 0.0;
+   k = 0;
+   do {
+      diff = (S_hs(k-1, cs, rsq, omega) + S_hs(k+2, cs, rsq, omega));
+      yp1 += diff * values[number-1-k];
+      err = diff * diff;
+      k++;
+   } while((err > precision) && (k < number));
+   if (k >= number) return -3;     /* sum did not converge */
+
+   values[number-1]=yp0;
+   values[number-2]=yp1;
+   S_IIR_order2(cs, a2, a3, tempValues, values, number, true);
+
+   delete []tempValues;
+   delete []coeff;
+
+   return 0;
+}
+/* *************************************************************** */
+template <class DTYPE>
+void reg_spline_Smooth_core(nifti_image *image,
+                            float lambda)
+{
+   if(image->intent_p2==CUB_SPLINE_GRID){
+      reg_getDisplacementFromDeformation(image);
+   }
+   // Mostly copy pasted from scipy at the moment
+   size_t voxelNumber = (size_t)image->nx * image->ny * image->nz;
+   nifti_image *coeffImage = nifti_copy_nim_info(image);
+   coeffImage->data = (void *)malloc(coeffImage->nvox*coeffImage->nbyper);
+   memcpy(coeffImage->data, image->data, coeffImage->nvox*coeffImage->nbyper);
+   DTYPE *coeffPtr = static_cast<DTYPE *>(coeffImage->data);
+   DTYPE *imagePtr = static_cast<DTYPE *>(image->data);
+
+   // Compute r and omega from lambda
+   DTYPE r, omega;
+   DTYPE xi, tmp, tmp2;
+
+   tmp = sqrt(3. + 144.*(DTYPE)lambda);
+   xi = 1. - 96.*(DTYPE)lambda + 24.*(DTYPE)lambda * tmp;
+   omega = atan(sqrt((144.*lambda - 1.0)/xi));
+   tmp2 = sqrt(xi);
+   r = (24.*(DTYPE)lambda - 1. - tmp2)/(24.*(DTYPE)lambda) \
+         * sqrt((48.*(DTYPE)lambda + 24.*(DTYPE)lambda*tmp))/tmp2;
+
+   // Loop over time points
+   for(size_t tuvw=0; tuvw<(size_t)image->nt*image->nu*image->nv*image->nw; ++tuvw){
+      // Pointer to the current volume
+      DTYPE *currentCoeffPtr = &coeffPtr[voxelNumber*tuvw];
+      DTYPE *currentImagePtr = &imagePtr[voxelNumber*tuvw];
+
+      // Coefficients - Loop over x-axis
+      size_t number = (size_t)image->nx;
+      DTYPE *coeffValues=new DTYPE[number];
+      int increment = 1, start, end, i;
+      for(i=0; i<image->ny*image->nz; i++)
+      {
+         start = i*image->nx;
+         end = start + image->nx;
+         extractLine<DTYPE>(start,end,increment,currentCoeffPtr,coeffValues);
+         if(S_IIR_forback2<DTYPE>(r, omega, coeffValues, number)) reg_exit();
+         restoreLine<DTYPE>(start,end,increment,currentCoeffPtr,coeffValues);
+      }
+      delete[] coeffValues;
+      coeffValues=NULL;
+
+      // Coefficients - Loop over y-axis
+      if(image->ny>1)
+      {
+         number = (size_t)image->ny;
+         coeffValues=new DTYPE[number];
+         increment = image->nx;
+         for(i=0; i<image->nx*image->nz; i++)
+         {
+            start = i + i/image->nx * image->nx * (image->ny - 1);
+            end = start + image->nx*image->ny;
+            extractLine<DTYPE>(start,end,increment,currentCoeffPtr,coeffValues);
+            if(S_IIR_forback2<DTYPE>(r, omega, coeffValues, number)) reg_exit();
+            restoreLine<DTYPE>(start,end,increment,currentCoeffPtr,coeffValues);
+         }
+         delete[] coeffValues;
+         coeffValues=NULL;
+      }
+
+      // Coefficients - Loop over z-axis
+      if(image->nz>1)
+      {
+         number = (size_t)image->nz;
+         coeffValues=new DTYPE[number];
+         increment = image->nx*image->ny;
+         for(i=0; i<image->nx*image->ny; i++)
+         {
+            start = i;
+            end = start + image->nx*image->ny*image->nz;
+            extractLine<DTYPE>(start,end,increment,currentCoeffPtr,coeffValues);
+            if(S_IIR_forback2<DTYPE>(r, omega, coeffValues, number)) reg_exit();
+            restoreLine<DTYPE>(start,end,increment,currentCoeffPtr,coeffValues);
+         }
+         delete[] coeffValues;
+         coeffValues=NULL;
+      }
+
+      // Reapply the spline kernel
+      DTYPE kernel[3]={1./6., 4./6., 1./6.};
+      // Convolution - Loop over x-axis
+      number = (size_t)image->nx;
+      coeffValues=new DTYPE[number];
+      DTYPE *imageValues=new DTYPE[number];
+      increment = 1;
+      for(int i=0; i<image->ny*image->nz; i++)
+      {
+         int start = i*image->nx;
+         int end = start + image->nx;
+         extractLine<DTYPE>(start,end,increment,currentCoeffPtr,coeffValues);
+         for(size_t v=1; v<number-1;++v){
+            imageValues[v] =
+                  kernel[0]*coeffValues[v-1] +
+                  kernel[1]*coeffValues[v] +
+                  kernel[2]*coeffValues[v+1];
+         }
+         imageValues[0] =
+               kernel[0]*coeffValues[0] +
+               kernel[1]*coeffValues[0] +
+               kernel[2]*coeffValues[1];
+         imageValues[number-1] =
+               kernel[0]*coeffValues[number-2] +
+               kernel[1]*coeffValues[number-1] +
+               kernel[2]*coeffValues[number-1];
+         restoreLine<DTYPE>(start,end,increment,currentImagePtr,imageValues);
+      }
+      delete[] coeffValues;
+      delete[] imageValues;
+      coeffValues=NULL;
+      imageValues=NULL;
+
+      // Convolution - Loop over y-axis
+      if(image->ny>1)
+      {
+         number = (size_t)image->ny;
+         coeffValues=new DTYPE[number];
+         imageValues=new DTYPE[number];
+         increment = image->nx;
+         for(int i=0; i<image->nx*image->nz; i++)
+         {
+            int start = i + i/image->nx * image->nx * (image->ny - 1);
+            int end = start + image->nx*image->ny;
+            extractLine<DTYPE>(start,end,increment,currentImagePtr,coeffValues);
+            for(size_t v=1; v<number-1;++v){
+               imageValues[v] =
+                     kernel[0]*coeffValues[v-1] +
+                     kernel[1]*coeffValues[v] +
+                     kernel[2]*coeffValues[v+1];
+            }
+            imageValues[0] =
+                  kernel[0]*coeffValues[0] +
+                  kernel[1]*coeffValues[0] +
+                  kernel[2]*coeffValues[1];
+            imageValues[number-1] =
+                  kernel[0]*coeffValues[number-2] +
+                  kernel[1]*coeffValues[number-1] +
+                  kernel[2]*coeffValues[number-1];
+            restoreLine<DTYPE>(start,end,increment,currentImagePtr,imageValues);
+         }
+         delete[] coeffValues;
+         delete[] imageValues;
+         coeffValues=NULL;
+         imageValues=NULL;
+      } // y axis is larger than 1
+
+      if(image->nz>1){
+         // Convolution - Loop over z-axis
+         number = (size_t)image->nz;
+         coeffValues=new DTYPE[number];
+         imageValues=new DTYPE[number];
+         increment = image->nx*image->ny;
+         for(int i=0; i<image->nx*image->ny; i++)
+         {
+            int start = i;
+            int end = start + image->nx*image->ny*image->nz;
+            extractLine<DTYPE>(start,end,increment,currentImagePtr,coeffValues);
+            for(size_t v=1; v<number-1;++v){
+               imageValues[v] =
+                     kernel[0]*coeffValues[v-1] +
+                     kernel[1]*coeffValues[v] +
+                     kernel[2]*coeffValues[v+1];
+            }
+            imageValues[0] =
+                  kernel[0]*coeffValues[0] +
+                  kernel[1]*coeffValues[0] +
+                  kernel[2]*coeffValues[1];
+            imageValues[number-1] =
+                  kernel[0]*coeffValues[number-2] +
+                  kernel[1]*coeffValues[number-1] +
+                  kernel[2]*coeffValues[number-1];
+            restoreLine<DTYPE>(start,end,increment,currentImagePtr,imageValues);
+         }
+         delete[] coeffValues;
+         delete[] imageValues;
+         coeffValues=NULL;
+         imageValues=NULL;
+      } // z axis is larger than 1
+   } // Loop over time point
+
+   nifti_image_free(coeffImage);
+
+   if(image->intent_p2==CUB_SPLINE_GRID){
+      reg_getDeformationFromDisplacement(image);
+   }
+}
+/* *************************************************************** */
+void reg_spline_Smooth(nifti_image *img,
+                       float lamda)
+{
+   if(lamda<=0.f)
+      return;
+   switch(img->datatype)
+   {
+   case NIFTI_TYPE_FLOAT32:
+      reg_spline_Smooth_core<float>(img, lamda);
+      break;
+   case NIFTI_TYPE_FLOAT64:
+      reg_spline_Smooth_core<double>(img, lamda);
+      break;
+   default:
+      reg_print_fct_error("reg_spline_Smooth_core");
+      reg_print_msg_error("Only implemented for single or double precision images");
+      reg_exit();
+   }
+   return;
 }
 /* *************************************************************** */
 /* *************************************************************** */

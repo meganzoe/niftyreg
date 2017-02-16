@@ -212,4 +212,13 @@ void compute_BCH_update(nifti_image *img1,
 extern "C++"
 void reg_spline_GetDeconvolvedCoefficents(nifti_image *img);
 /* *************************************************************** */
+/** @brief Smooth the input spline image using a smoothing subic
+ * spline filter
+ * @param img Image to be smoothed
+ * @param lambda Amount of smoothing to apply
+ */
+extern "C++"
+void reg_spline_Smooth(nifti_image *img,
+                       float lamda);
+/* *************************************************************** */
 #endif

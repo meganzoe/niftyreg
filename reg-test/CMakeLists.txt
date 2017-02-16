@@ -340,6 +340,9 @@ add_test(${EXEC}_SPL_DEN_3D ${EXEC} ${DFOLDER}/refImg3D.nii.gz ${DFOLDER}/bsplin
 add_test(${EXEC}_DEF_DEN_2D ${EXEC} ${DFOLDER}/refImg2D.nii.gz ${DFOLDER}/bspline_def2D.nii.gz ${DFOLDER}/le_grad_field_dense2D.nii.gz 2)
 add_test(${EXEC}_DEF_DEN_3D ${EXEC} ${DFOLDER}/refImg3D.nii.gz ${DFOLDER}/bspline_def3D.nii.gz ${DFOLDER}/le_grad_field_dense3D.nii.gz 2)
 #-----------------------------------------------------------------------------
+set(EXEC reg_test_smooth_spline)
+add_executable(${EXEC} ${EXEC}.cpp)
+target_link_libraries(${EXEC} _reg_localTrans _reg_ReadWriteImage)
 if(BUILD_DEV)
   set(EXEC reg_test_blockMatching_mrf)
   add_executable(${EXEC} ${EXEC}.cpp)
