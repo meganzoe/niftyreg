@@ -52,6 +52,7 @@ protected:
    virtual void GetLandmarkDistanceGradient();
    virtual void SetGradientImageToZero();
    virtual T NormaliseGradient();
+   virtual void CubicSplineSmoothTransformation(float);
    virtual void SmoothGradient();
    virtual void GetObjectiveFunctionGradient();
    virtual void GetApproximatedGradient();

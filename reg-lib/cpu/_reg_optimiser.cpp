@@ -270,19 +270,19 @@ reg_conjugateGradient<T>::~reg_conjugateGradient()
 /* *************************************************************** */
 template <class T>
 void reg_conjugateGradient<T>::Initialise(size_t nvox,
-      int dim,
-      bool optX,
-      bool optY,
-      bool optZ,
-      size_t maxit,
-      size_t start,
-      InterfaceOptimiser *o,
-      T *cppData,
-      T *gradData,
-      size_t nvox_b,
-      T *cppData_b,
-      T *gradData_b
-                                         )
+                                          int dim,
+                                          bool optX,
+                                          bool optY,
+                                          bool optZ,
+                                          size_t maxit,
+                                          size_t start,
+                                          InterfaceOptimiser *o,
+                                          T *cppData,
+                                          T *gradData,
+                                          size_t nvox_b,
+                                          T *cppData_b,
+                                          T *gradData_b
+                                          )
 {
    reg_optimiser<T>::Initialise(nvox,
                                 dim,
@@ -465,118 +465,203 @@ void reg_conjugateGradient<T>::reg_test_optimiser()
 /* *************************************************************** */
 /* *************************************************************** */
 template <class T>
-reg_lbfgs<T>::reg_lbfgs()
+reg_ForwardBackwardSplit<T>::reg_ForwardBackwardSplit()
    :reg_optimiser<T>::reg_optimiser()
 {
-   this->stepToKeep=5;
-   this->oldDOF=NULL;
-   this->oldGrad=NULL;
-   this->diffDOF=NULL;
-   this->diffGrad=NULL;
-}
-/* *************************************************************** */
-/* *************************************************************** */
-template <class T>
-reg_lbfgs<T>::~reg_lbfgs()
-{
-   if(this->oldDOF!=NULL)
-      free(this->oldDOF);
-   this->oldDOF=NULL;
-   if(this->oldGrad!=NULL)
-      free(this->oldGrad);
-   this->oldGrad=NULL;
-   for(size_t i=0; i<this->stepToKeep; ++i)
-   {
-      if(this->diffDOF[i]!=NULL)
-         free(this->diffDOF[i]);
-      this->diffDOF[i]=NULL;
-      if(this->diffGrad[i]!=NULL)
-         free(this->diffGrad[i]);
-      this->diffGrad[i]=NULL;
-   }
-   if(this->diffDOF!=NULL)
-      free(this->diffDOF);
-   this->diffDOF=NULL;
-   if(this->diffGrad!=NULL)
-      free(this->diffGrad);
-   this->diffGrad=NULL;
-}
-/* *************************************************************** */
-/* *************************************************************** */
-template <class T>
-void reg_lbfgs<T>::Initialise(size_t nvox,
-                              int dim,
-                              bool optX,
-                              bool optY,
-                              bool optZ,
-                              size_t maxit,
-                              size_t start,
-                              InterfaceOptimiser *o,
-                              T *cppData,
-                              T *gradData,
-                              size_t nvox_b,
-                              T *cppData_b,
-                              T *gradData_b)
-{
-   reg_optimiser<T>::Initialise(nvox,
-                                dim,
-                                optX,
-                                optY,
-                                optZ,
-                                maxit,
-                                start,
-                                o,
-                                cppData,
-                                gradData,
-                                nvox_b,
-                                cppData_b,
-                                gradData_b);
-   this->stepToKeep=5;
-   this->diffDOF=(T **)malloc(this->stepToKeep*sizeof(T *));
-   this->diffGrad=(T **)malloc(this->stepToKeep*sizeof(T *));
-   for(size_t i=0; i<this->stepToKeep; ++i)
-   {
-      this->diffDOF[i]=(T *)malloc(this->dofNumber*sizeof(T));
-      this->diffGrad[i]=(T *)malloc(this->dofNumber*sizeof(T));
-      if(this->diffDOF[i]==NULL || this->diffGrad[i]==NULL)
-      {
-         reg_print_fct_error("reg_lbfgs<T>::Initialise");
-         reg_print_msg_error("Out of memory");
-         reg_exit();
-      }
-   }
-   this->oldDOF=(T *)malloc(this->dofNumber*sizeof(T));
-   this->oldGrad=(T *)malloc(this->dofNumber*sizeof(T));
-   if(this->oldDOF==NULL || this->oldGrad==NULL)
-   {
-      reg_print_fct_error("reg_lbfgs<T>::Initialise");
-      reg_print_msg_error("Out of memory");
-      reg_exit();
-   }
-}
-/* *************************************************************** */
-/* *************************************************************** */
-template <class T>
-void reg_lbfgs<T>::UpdateGradientValues()
-{
 
+  this->alpha = 1.f;
+  this->tau = 10000.f;
+  this->previousDOF=NULL;
+  this->previousDOF_b=NULL;
+  this->previousSmoothedDOF=NULL;
+  this->previousSmoothedDOF_b=NULL;
+#ifndef NDEBUG
+   reg_print_msg_debug("reg_ForwardBackwardSplit<T>::reg_ForwardBackwardSplit() called");
+#endif
 }
 /* *************************************************************** */
 /* *************************************************************** */
 template <class T>
-void reg_lbfgs<T>::Optimise(T maxLength,
-                            T smallLength,
-                            T &startLength)
+reg_ForwardBackwardSplit<T>::~reg_ForwardBackwardSplit()
 {
-
-   this->UpdateGradientValues();
-   reg_optimiser<T>::Optimise(maxLength,
-                              smallLength,
-                              startLength);
+  if(this->previousDOF!=NULL) free(this->previousDOF);
+  if(this->previousSmoothedDOF!=NULL) free(this->previousSmoothedDOF);
+  if(this->previousDOF_b!=NULL) free(this->previousDOF_b);
+  if(this->previousSmoothedDOF_b!=NULL) free(this->previousSmoothedDOF_b);
+#ifndef NDEBUG
+   reg_print_msg_debug("reg_ForwardBackwardSplit<T>::~reg_ForwardBackwardSplit() called");
+#endif
 }
 /* *************************************************************** */
 /* *************************************************************** */
-//template class reg_optimiser<float>;
-//template class reg_conjugateGradient<float>;
-//template class reg_lbfgs<float>;
+template <class T>
+void reg_ForwardBackwardSplit<T>::Initialise(size_t nvox,
+                                             int dim,
+                                             bool optX,
+                                             bool optY,
+                                             bool optZ,
+                                             size_t maxit,
+                                             size_t start,
+                                             InterfaceOptimiser *o,
+                                             T *cppData,
+                                             T *gradData,
+                                             size_t nvox_b,
+                                             T *cppData_b,
+                                             T *gradData_b)
+{
+  reg_optimiser<T>::Initialise(nvox,
+                               dim,
+                               optX,
+                               optY,
+                               optZ,
+                               maxit,
+                               start,
+                               o,
+                               cppData,
+                               gradData,
+                               nvox_b,
+                               cppData_b,
+                               gradData_b
+                              );
+  if(this->previousDOF!=NULL) free(this->previousDOF);
+  if(this->previousSmoothedDOF!=NULL) free(this->previousSmoothedDOF);
+  this->previousDOF=(T *)malloc(this->dofNumber*sizeof(T));
+  this->previousSmoothedDOF=(T *)malloc(this->dofNumber*sizeof(T));
+  memcpy(this->previousDOF,this->currentDOF,this->dofNumber*sizeof(T));
+  memcpy(this->previousSmoothedDOF,this->currentDOF,this->dofNumber*sizeof(T));
+
+  if(cppData_b!=NULL && gradData_b!=NULL && nvox_b>0)
+  {
+     if(this->previousDOF_b!=NULL) free(this->previousDOF_b);
+     if(this->previousSmoothedDOF_b!=NULL) free(this->previousSmoothedDOF_b);
+     this->previousDOF_b=(T *)malloc(this->dofNumber_b*sizeof(T));
+     this->previousSmoothedDOF_b=(T *)malloc(this->dofNumber_b*sizeof(T));
+     memcpy(this->previousDOF_b,this->currentDOF_b,this->dofNumber_b*sizeof(T));
+     memcpy(this->previousSmoothedDOF_b,this->currentDOF_b,this->dofNumber_b*sizeof(T));
+  }
+}
+/* *************************************************************** */
+/* *************************************************************** */
+template <class T>
+void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
+                                           T smallLength,
+                                           T &startLength)
+{
+  // Start performing the line search
+  if(this->currentIterationNumber>this->maxIterationNumber-1){
+    startLength = 0;
+    return;
+  }
+  // Forward step
+  this->objFunc->UpdateParameters(-this->tau); // this->currentDOF = this->bestDOF - tau * grad
+  // Proximal step
+  // Need to modulate by tau
+  this->objFunc->CubicSplineSmoothTransformation(this->tau); // this->currentDOF <- B3(this->currentDOF)
+
+//  this->StoreCurrentDOF();startLength=this->tau;
+//  this->currentObjFunctionValue=this->objFunc->GetObjectiveFunctionValue();
+//  this->objFunc->UpdateBestObjFunctionValue();
+//  this->bestObjFunctionValue=this->currentObjFunctionValue;
+//  return;
+  // acceleration parameter
+  float temp_alpha = 0.5f + sqrtf(1.f + 4.f * reg_pow2(this->alpha)) / 2.f;
+  // prediction step
+  float constantRatio = (this->alpha - 1.f) / temp_alpha;
+  size_t i;
+  size_t dofNumber = this->dofNumber;
+  T *bestDOF = this->bestDOF;
+  T *currentDOF = this->currentDOF;
+  T *previousSmoothedDOF = this->previousSmoothedDOF;
+#ifdef _OPENMP
+#pragma omp parallel for default(none) \
+   shared(dofNumber, constantRatio, bestDOF, \
+  currentDOF, previousSmoothedDOF) \
+   private(i)
+#endif
+  for(i=0; i<dofNumber; ++i){
+    bestDOF[i] = currentDOF[i] - constantRatio *
+        (previousSmoothedDOF[i] - currentDOF[i]);
+  }
+  dofNumber = this->dofNumber_b;
+  bestDOF = this->bestDOF_b;
+  currentDOF = this->currentDOF_b;
+  previousSmoothedDOF = this->previousSmoothedDOF_b;
+#ifdef _OPENMP
+#pragma omp parallel for default(none) \
+   shared(dofNumber, constantRatio, bestDOF, \
+  currentDOF, previousSmoothedDOF) \
+   private(i)
+#endif
+  for(i=0; i<dofNumber; ++i){
+    bestDOF[i] = currentDOF[i] - constantRatio *
+        (previousSmoothedDOF[i] - currentDOF[i]);
+  }
+
+  double sum = 0.f;
+  dofNumber = this->dofNumber;
+  bestDOF = this->bestDOF;
+  currentDOF = this->currentDOF;
+  previousSmoothedDOF = this->previousSmoothedDOF;
+#ifdef _OPENMP
+#pragma omp parallel for default(none) \
+   shared(dofNumber, constantRatio, bestDOF, \
+  currentDOF, previousSmoothedDOF) \
+   private(i) \
+  reduction(+:sum)
+#endif
+  for(size_t i=0; i<dofNumber; ++i)
+    sum += (bestDOF[i] - currentDOF[i]) *
+        (currentDOF[i] - previousSmoothedDOF[i]) ;
+  dofNumber = this->dofNumber_b;
+  bestDOF = this->bestDOF_b;
+  currentDOF = this->currentDOF_b;
+  previousSmoothedDOF = this->previousSmoothedDOF_b;
+#ifdef _OPENMP
+#pragma omp parallel for default(none) \
+   shared(dofNumber, constantRatio, bestDOF, \
+  currentDOF, previousSmoothedDOF) \
+   private(i) \
+  reduction(+:sum)
+#endif
+  for(size_t i=0; i<dofNumber; ++i)
+    sum += (bestDOF[i] - currentDOF[i]) *
+        (currentDOF[i] - previousSmoothedDOF[i]) ;
+
+  memcpy(this->previousSmoothedDOF, this->currentDOF, this->dofNumber*sizeof(T));
+  if(this->dofNumber_b>0)
+    memcpy(this->previousSmoothedDOF_b, this->currentDOF_b, this->dofNumber_b*sizeof(T));
+
+  // Check for convergence and store the current DOF
+  double maxIncrement=0;
+  for(size_t i=0; i<this->dofNumber; ++i){
+    T currentVal = (this->bestDOF[i]-this->previousDOF[i]);
+    maxIncrement = currentVal>maxIncrement?currentVal:maxIncrement;
+  }
+  memcpy(this->previousDOF, this->bestDOF, this->dofNumber*sizeof(T));
+  for(size_t i=0; i<this->dofNumber_b; ++i){
+    T currentVal = (this->bestDOF_b[i]-this->previousDOF_b[i]);
+    maxIncrement = currentVal>maxIncrement?currentVal:maxIncrement;
+    if(this->dofNumber_b>0)
+      memcpy(this->previousDOF_b, this->bestDOF_b, this->dofNumber_b*sizeof(T));
+  }
+
+  if(sum>std::numeric_limits<T>::epsilon())
+    this->alpha=1.f;
+  else this->alpha = temp_alpha;
+
+  // We might want to use that for testing
+  this->currentObjFunctionValue=this->objFunc->GetObjectiveFunctionValue();
+  this->objFunc->UpdateBestObjFunctionValue();
+  this->bestObjFunctionValue=this->currentObjFunctionValue;
+
+  if(maxIncrement<smallLength)
+    startLength = 0;
+  else startLength = maxIncrement;
+
+#ifndef NDEBUG
+  reg_print_msg_debug("reg_ForwardBackwardSplit<T>::~reg_ForwardBackwardSplit() called");
+#endif
+}
+/* *************************************************************** */
+/* *************************************************************** */
 #endif // _REG_OPTIMISER_CPP

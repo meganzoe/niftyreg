@@ -419,6 +419,8 @@ void reg_f3d_sym<T>::CheckParameters()
 {
 
    reg_f3d<T>::CheckParameters();
+   if(this->useForwardBackwardSplitOptimiser)
+      this->inverseConsistencyWeight = 0.f;
 
    // CHECK THE FLOATING MASK DIMENSION IF IT IS DEFINED
    if(this->floatingMaskImage!=NULL)
@@ -622,7 +624,7 @@ void reg_f3d_sym<T>::WarpFloatingImage(int inter)
       reg_defField_getJacobianMatrix(this->deformationFieldImage,
                                      this->forwardJacobianMatrix);
       /*DTI needs fixing!
-	  reg_resampleImage(this->currentFloating,
+     reg_resampleImage(this->currentFloating,
                         this->warped,
                         this->deformationFieldImage,
                         this->currentMask,
@@ -647,7 +649,7 @@ void reg_f3d_sym<T>::WarpFloatingImage(int inter)
       reg_defField_getJacobianMatrix(this->backwardDeformationFieldImage,
                                      this->backwardJacobianMatrix);
      /* DTI needs fixing
-	 reg_resampleImage(this->currentReference, // input image
+    reg_resampleImage(this->currentReference, // input image
                         this->backwardWarped, // warped input image
                         this->backwardDeformationFieldImage, // deformation field
                         this->currentFloatingMask, // mask
@@ -1133,6 +1135,15 @@ T reg_f3d_sym<T>::NormaliseGradient()
 }
 /* *************************************************************** */
 /* *************************************************************** */
+template <class T>
+void reg_f3d_sym<T>::CubicSplineSmoothTransformation(float tau)
+{
+   reg_f3d<T>::CubicSplineSmoothTransformation(tau);
+   reg_spline_Smooth(this->backwardControlPointGrid,
+                     this->forwardBackwardSplitWeight*tau);
+}
+/* *************************************************************** */
+/* *************************************************************** */
 template<class T>
 void reg_f3d_sym<T>::GetObjectiveFunctionGradient()
 {
@@ -1520,6 +1531,8 @@ void reg_f3d_sym<T>::SetOptimiser()
 {
    if(this->useConjGradient)
       this->optimiser=new reg_conjugateGradient<T>();
+   else if(this->useForwardBackwardSplitOptimiser)
+      this->optimiser=new reg_ForwardBackwardSplit<T>();
    else this->optimiser=new reg_optimiser<T>();
    this->optimiser->Initialise(this->controlPointGrid->nvox,
                                this->controlPointGrid->nz>1?3:2,

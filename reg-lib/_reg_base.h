@@ -85,6 +85,8 @@ protected:
    T similarityWeight;
    bool additive_mc_nmi;
    bool useConjGradient;
+   bool useForwardBackwardSplitOptimiser;
+   bool forwardBackwardSplitWeight;
    bool useApproxGradient;
    bool verbose;
    bool usePyramid;
@@ -143,6 +145,7 @@ protected:
       return;
    }
    virtual void InitialiseSimilarity();
+   virtual void CubicSplineSmoothTransformation(float){;}
 
    // Virtual empty functions that have to be filled
    virtual void GetDeformationField()
@@ -247,6 +250,8 @@ public:
    void DoNotUseConjugateGradient();
    void UseApproximatedGradient();
    void DoNotUseApproximatedGradient();
+   void UseForwardBackwardSplitOptimiser(float);
+   void DoNoTUseForwardBackwardSplitOptimiser();
    // Measure of similarity related functions
 //    void ApproximateParzenWindow();
 //    void DoNotApproximateParzenWindow();

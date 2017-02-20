@@ -4842,7 +4842,8 @@ template <class DTYPE>
 void reg_spline_Smooth_core(nifti_image *image,
                             float lambda)
 {
-   if(image->intent_p2==CUB_SPLINE_GRID){
+   if(image->intent_p2==CUB_SPLINE_GRID ||
+      image->intent_p2==SPLINE_VEL_GRID){
       reg_getDisplacementFromDeformation(image);
    }
    // Mostly copy pasted from scipy at the moment
@@ -5024,7 +5025,8 @@ void reg_spline_Smooth_core(nifti_image *image,
 
    nifti_image_free(coeffImage);
 
-   if(image->intent_p2==CUB_SPLINE_GRID){
+   if(image->intent_p2==CUB_SPLINE_GRID ||
+      image->intent_p2==SPLINE_VEL_GRID){
       reg_getDeformationFromDisplacement(image);
    }
 }

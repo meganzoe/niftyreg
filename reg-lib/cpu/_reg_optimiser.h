@@ -22,8 +22,11 @@ public:
    virtual double GetObjectiveFunctionValue() = 0;
    /// @brief The transformation parameters are optimised
    virtual void UpdateParameters(float) = 0;
-   /// @brief The best objective function values are stored
-   virtual void UpdateBestObjFunctionValue() = 0;
+  /// @brief The best objective function values are stored
+  virtual void UpdateBestObjFunctionValue() = 0;
+
+  /// @brief Forward backward split function
+  virtual void CubicSplineSmoothTransformation(float) = 0;
 
 protected:
    /// @brief Interface constructor
@@ -212,22 +215,22 @@ public:
 };
 /* *************************************************************** */
 /* *************************************************************** */
-/** @class Global optimisation class
- * @brief
+/** @class reg_ForwardBackwardSplit
+ * @brief Forward Backward Split optimisation
  */
 template <class T>
-class reg_lbfgs : public reg_optimiser<T>
+class reg_ForwardBackwardSplit : public reg_optimiser<T>
 {
-protected:
-   size_t stepToKeep;
-   T *oldDOF;
-   T *oldGrad;
-   T **diffDOF;
-   T **diffGrad;
-
+private:
+  float alpha;
+  float tau;
+  T *previousDOF;
+  T *previousDOF_b;
+  T *previousSmoothedDOF;
+  T *previousSmoothedDOF_b;
 public:
-   reg_lbfgs();
-   ~reg_lbfgs();
+   reg_ForwardBackwardSplit();
+   ~reg_ForwardBackwardSplit();
    virtual void Initialise(size_t nvox,
                            int dim,
                            bool optX,
@@ -244,7 +247,6 @@ public:
    virtual void Optimise(T maxLength,
                          T smallLength,
                          T &startLength);
-   virtual void UpdateGradientValues();
 };
 /* *************************************************************** */
 /* *************************************************************** */

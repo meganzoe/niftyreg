@@ -211,6 +211,13 @@ template<class T>
 void reg_f3d<T>::CheckParameters()
 {
    reg_base<T>::CheckParameters();
+   // All regularisation weights are set to zeros
+   if(this->useForwardBackwardSplitOptimiser){
+      this->bendingEnergyWeight = 0.;
+      this->linearEnergyWeight = 0.;
+      this->jacobianLogWeight = 0.;
+      this->landmarkRegWeight = 0.;
+   }
    // NORMALISE THE OBJECTIVE FUNCTION WEIGHTS
    if(strcmp(this->executableName,"NiftyReg F3D")==0 ||
          strcmp(this->executableName,"NiftyReg F3D GPU")==0)
@@ -782,7 +789,6 @@ template <class T>
 T reg_f3d<T>::NormaliseGradient()
 {
    // First compute the gradient max length for normalisation purpose
-   //	T maxGradValue=0;
    size_t voxNumber = this->transformationGradient->nx *
          this->transformationGradient->ny *
          this->transformationGradient->nz;
@@ -803,7 +809,6 @@ T reg_f3d<T>::NormaliseGradient()
             valY = *ptrY++;
          if(this->optimiseZ==true)
             valZ = *ptrZ++;
-         //			length[i] = (float)(sqrt(valX*valX + valY*valY + valZ*valZ));
          T length = (T)(sqrt(valX*valX + valY*valY + valZ*valZ));
          maxGradValue = (length>maxGradValue)?length:maxGradValue;
       }
@@ -817,7 +822,6 @@ T reg_f3d<T>::NormaliseGradient()
             valX = *ptrX++;
          if(this->optimiseY==true)
             valY = *ptrY++;
-         //			length[i] = (float)(sqrt(valX*valX + valY*valY));
          T length = (T)(sqrt(valX*valX + valY*valY));
          maxGradValue = (length>maxGradValue)?length:maxGradValue;
       }
@@ -851,12 +855,6 @@ T reg_f3d<T>::NormaliseGradient()
                valY = *ptrY;
             if(this->optimiseZ==true)
                valZ = *ptrZ;
-            //				T tempLength = (float)(sqrt(valX*valX + valY*valY + valZ*valZ));
-            //				if(tempLength>maxGradValue){
-            //					*ptrX *= maxGradValue / tempLength;
-            //					*ptrY *= maxGradValue / tempLength;
-            //					*ptrZ *= maxGradValue / tempLength;
-            //				}
             *ptrX++ = valX / maxGradValue;
             *ptrY++ = valY / maxGradValue;
             *ptrZ++ = valZ / maxGradValue;
@@ -873,11 +871,6 @@ T reg_f3d<T>::NormaliseGradient()
                valX = *ptrX;
             if(this->optimiseY==true)
                valY = *ptrY;
-            //				T tempLength = (float)(sqrt(valX*valX + valY*valY));
-            //				if(tempLength>maxGradValue){
-            //					*ptrX *= maxGradValue / tempLength;
-            //					*ptrY *= maxGradValue / tempLength;
-            //				}
             *ptrX++ = valX / maxGradValue;
             *ptrY++ = valY / maxGradValue;
          }
@@ -888,11 +881,15 @@ T reg_f3d<T>::NormaliseGradient()
    reg_print_fct_debug("reg_f3d<T>::NormaliseGradient");
 #endif
 
-   //   reg_io_WriteImageFile(transformationGradient,
-   //                         "gradient.nii");
-   //   reg_exit();
-
    return maxGradValue;
+}
+/* *************************************************************** */
+/* *************************************************************** */
+template <class T>
+void reg_f3d<T>::CubicSplineSmoothTransformation(float tau)
+{
+   reg_spline_Smooth(this->controlPointGrid,
+                     this->forwardBackwardSplitWeight * tau);
 }
 /* *************************************************************** */
 /* *************************************************************** */

@@ -32,6 +32,8 @@ reg_base<T>::reg_base(int refTimePoint,int floTimePoint)
    this->perturbationNumber=0;
    this->useConjGradient=true;
    this->useApproxGradient=false;
+   this->useForwardBackwardSplitOptimiser=false;
+   this->forwardBackwardSplitWeight=1.f;
 
    this->measure_ssd=NULL;
    this->measure_kld=NULL;
@@ -424,6 +426,7 @@ template<class T>
 void reg_base<T>::UseConjugateGradient()
 {
    this->useConjGradient = true;
+   this->useForwardBackwardSplitOptimiser = false;
 #ifndef NDEBUG
    reg_print_fct_debug("reg_base<T>::UseConjugateGradient");
 #endif
@@ -435,6 +438,26 @@ void reg_base<T>::DoNotUseConjugateGradient()
    this->useConjGradient = false;
 #ifndef NDEBUG
    reg_print_fct_debug("reg_base<T>::DoNotUseConjugateGradient");
+#endif
+}
+/* *************************************************************** */
+template<class T>
+void reg_base<T>::UseForwardBackwardSplitOptimiser(float w)
+{
+   this->useConjGradient = false;
+   this->useForwardBackwardSplitOptimiser = true;
+   this->forwardBackwardSplitWeight = w;
+#ifndef NDEBUG
+   reg_print_fct_debug("reg_base<T>::UseForwardBackwardSplitOptimiser");
+#endif
+}
+/* *************************************************************** */
+template<class T>
+void reg_base<T>::DoNoTUseForwardBackwardSplitOptimiser()
+{
+   this->useForwardBackwardSplitOptimiser = false;
+#ifndef NDEBUG
+   reg_print_fct_debug("reg_base<T>::DoNoTUseForwardBackwardSplitOptimiser");
 #endif
 }
 /* *************************************************************** */
@@ -1133,8 +1156,12 @@ void reg_base<T>::Initialise()
 template <class T>
 void reg_base<T>::SetOptimiser()
 {
-   if(this->useConjGradient)
+   if(this->useConjGradient){
       this->optimiser=new reg_conjugateGradient<T>();
+   }
+   else if(this->useForwardBackwardSplitOptimiser){
+      this->optimiser=new reg_ForwardBackwardSplit<T>();
+   }
    else this->optimiser=new reg_optimiser<T>();
 #ifndef NDEBUG
    reg_print_fct_debug("reg_base<T>::SetOptimiser");
@@ -1560,7 +1587,8 @@ void reg_base<T>::Run()
             this->GetObjectiveFunctionGradient();
 
             // Normalise the gradient
-            this->NormaliseGradient();
+            if(!this->useForwardBackwardSplitOptimiser)
+               this->NormaliseGradient();
 
             // Initialise the line search initial step size
             currentSize=currentSize>maxStepSize?maxStepSize:currentSize;

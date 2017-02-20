@@ -481,6 +481,7 @@ int compute_average_image(nifti_image *averageImage,
       // Add the image to the average
       remove_nan_and_add(averageImage, warpedImage, definedValue);
       nifti_image_free(warpedImage);
+      nifti_image_free(current_input_image);
    }
    // Clear the allocated demeanField if needed
    if(demeanField!=NULL) nifti_image_free(demeanField);

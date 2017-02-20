@@ -122,6 +122,9 @@ void Usage(char *exec)
    reg_print_info(exec, "\t-nopy\t\t\tDo not use a pyramidal approach");
    reg_print_info(exec, "\t-noConj\t\t\tTo not use the conjuage gradient optimisation but a simple gradient ascent");
    reg_print_info(exec, "\t-pert <int>\t\tTo add perturbation step(s) after each optimisation scheme");
+   reg_print_info(exec, "\tfbs <float>\t\tForward backward split optimisation. Cubic smoothing filter is used for regulisation");
+   reg_print_info(exec, "\t\t\t\tThe floating value (>0.f) define the lambda of the cubic smoothing filer.");
+   reg_print_info(exec, "\t\t\t\tAll other regularisation terms are set to 0.");
    reg_print_info(exec, "");
    reg_print_info(exec, "*** F3D2 options:");
    reg_print_info(exec, "\t-vel \t\t\tUse a velocity field integration to generate the deformation");
@@ -655,31 +658,31 @@ int main(int argc, char **argv)
          REG->UseDTI(timePoint);
          delete []timePoint;
       }
-	  else if (strcmp(argv[i], "-nmiw") == 0)
-	  {
-		  int tp = atoi(argv[++i]);
-		  double w = atof(argv[++i]);
-		  REG->SetNMIWeight(tp, w);
-	  }
-	  else if (strcmp(argv[i], "-lnccw") == 0)
-	  {
-		  int tp = atoi(argv[++i]);
-		  double w = atof(argv[++i]);
-		  REG->SetLNCCWeight(tp, w);
-	  }
-	  else if (strcmp(argv[i], "-ssdw") == 0)
-	  {
-		  int tp = atoi(argv[++i]);
-		  double w = atof(argv[++i]);
-		  REG->SetSSDWeight(tp, w);
-	  }
-	  else if (strcmp(argv[i], "-kldw") == 0)
-	  {
-		  int tp = atoi(argv[++i]);
-		  double w = atof(argv[++i]);
-		  REG->SetKLDWeight(tp, w);
-	  }
-	  else if (strcmp(argv[i], "-pad") == 0)
+     else if (strcmp(argv[i], "-nmiw") == 0)
+     {
+        int tp = atoi(argv[++i]);
+        double w = atof(argv[++i]);
+        REG->SetNMIWeight(tp, w);
+     }
+     else if (strcmp(argv[i], "-lnccw") == 0)
+     {
+        int tp = atoi(argv[++i]);
+        double w = atof(argv[++i]);
+        REG->SetLNCCWeight(tp, w);
+     }
+     else if (strcmp(argv[i], "-ssdw") == 0)
+     {
+        int tp = atoi(argv[++i]);
+        double w = atof(argv[++i]);
+        REG->SetSSDWeight(tp, w);
+     }
+     else if (strcmp(argv[i], "-kldw") == 0)
+     {
+        int tp = atoi(argv[++i]);
+        double w = atof(argv[++i]);
+        REG->SetKLDWeight(tp, w);
+     }
+     else if (strcmp(argv[i], "-pad") == 0)
       {
          REG->SetWarpedPaddingValue(atof(argv[++i]));
       }
@@ -694,6 +697,10 @@ int main(int argc, char **argv)
       else if(strcmp(argv[i], "-approxGrad")==0 || strcmp(argv[i], "--approxGrad")==0)
       {
          REG->UseApproximatedGradient();
+      }
+      else if(strcmp(argv[i], "-fbs")==0 || strcmp(argv[i], "--fbs")==0)
+      {
+         REG->UseForwardBackwardSplitOptimiser(atof(argv[++i]));
       }
       else if(strcmp(argv[i], "-interp")==0 || strcmp(argv[i], "--interp")==0)
       {
