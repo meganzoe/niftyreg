@@ -578,20 +578,20 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
     this->currentObjFunctionValue=this->objFunc->GetObjectiveFunctionValue();
     this->IncrementCurrentIterationNumber();
 
-    double minValue = *min_element(this->previousCost.begin(), this->previousCost.end());
+    double sum = -*min_element(this->previousCost.begin(), this->previousCost.end());
     // for (size_t k = 0; k < this->previousCost.size(); ++k)
     // {
     //   std::cout << this->previousCost[k] << std::endl;
     // }
-    // std::cout << "min = " << minValue << std::endl;
+    // std::cout << "min = " << sum << std::endl;
     dofNumber = this->dofNumber;
     bestDOF = this->bestDOF;
     currentDOF = this->currentDOF;
     previousSmoothedDOF = this->previousSmoothedDOF;
     grad = this->gradient;
     for(i=0; i<dofNumber;++i){
-      minValue -= (currentDOF[i] - previousSmoothedDOF[i]) * (-grad[i]);
-      minValue -= reg_pow2(currentDOF[i] - previousSmoothedDOF[i]) * 0.5f / this->tau;
+      sum += (currentDOF[i] - previousSmoothedDOF[i]) * (-grad[i]);
+      sum += reg_pow2(currentDOF[i] - previousSmoothedDOF[i]) * 0.5f / this->tau;
     }
 //    dofNumber = this->dofNumber_b;
 //    currentDOF = this->currentDOF_b;
@@ -602,8 +602,8 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
 //      maxValue += reg_pow2(currentDOF[i] - previousSmoothedDOF[i]) / (2. * this->tau);
 //    }
     std::cout << "Iteration " << while_counter << ": f(u_kp1) = " << -this->currentObjFunctionValue
-      << " <=? RHS = " << minValue << ", \tstep size = " << this->tau << std::endl;
-    if(-this->currentObjFunctionValue <= minValue){
+      << " <=? RHS = " << sum << ", \tstep size = " << this->tau << std::endl;
+    if(this->currentObjFunctionValue >= sum){
       std::cout << "done" << std::endl;
       break;
     }
