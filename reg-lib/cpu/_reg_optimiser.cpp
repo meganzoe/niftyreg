@@ -470,7 +470,7 @@ reg_ForwardBackwardSplit<T>::reg_ForwardBackwardSplit()
 {
 
   this->alpha = 1.f;
-  this->tau = 10.f;
+  this->tau = 30.f;
   this->previousDOF=NULL;
   this->previousDOF_b=NULL;
   this->previousSmoothedDOF=NULL;
@@ -567,8 +567,9 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
 
   // Non-monotone backtracking step
   double sum = 0.f;
-  int while_counter=0;
-  while(while_counter++<100){
+  int while_counter=1;
+
+  while(1){
     // Forward step
     this->objFunc->UpdateParameters(-this->tau); // this->currentDOF = this->bestDOF - tau * grad
     // Proximal step
@@ -578,14 +579,19 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
     this->IncrementCurrentIterationNumber();
 
     double minValue = *min_element(this->previousCost.begin(), this->previousCost.end());
+    // for (size_t k = 0; k < this->previousCost.size(); ++k)
+    // {
+    //   std::cout << this->previousCost[k] << std::endl;
+    // }
+    // std::cout << "min = " << minValue << std::endl;
     dofNumber = this->dofNumber;
     bestDOF = this->bestDOF;
     currentDOF = this->currentDOF;
     previousSmoothedDOF = this->previousSmoothedDOF;
     grad = this->gradient;
     for(i=0; i<dofNumber;++i){
-      minValue += (currentDOF[i] - previousSmoothedDOF[i]) * (-grad[i]);
-      minValue -= reg_pow2(currentDOF[i] - previousSmoothedDOF[i]) / (2. * this->tau);
+      minValue -= (currentDOF[i] - previousSmoothedDOF[i]) * (-grad[i]);
+      minValue -= reg_pow2(currentDOF[i] - previousSmoothedDOF[i]) * 0.5f / this->tau;
     }
 //    dofNumber = this->dofNumber_b;
 //    currentDOF = this->currentDOF_b;
@@ -595,8 +601,13 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
 //      maxValue += (currentDOF[i] - previousSmoothedDOF[i]) * (-grad[i]);
 //      maxValue += reg_pow2(currentDOF[i] - previousSmoothedDOF[i]) / (2. * this->tau);
 //    }
-    if(minValue<this->currentObjFunctionValue)
+    std::cout << "Iteration " << while_counter << ": f(u_kp1) = " << -this->currentObjFunctionValue
+      << " <=? RHS = " << minValue << ", \tstep size = " << this->tau << std::endl;
+    if(-this->currentObjFunctionValue <= minValue){
+      std::cout << "done" << std::endl;
       break;
+    }
+    while_counter++;
     this->tau /= 2.f;
   }
 
