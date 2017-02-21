@@ -578,17 +578,14 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
     this->currentObjFunctionValue=this->objFunc->GetObjectiveFunctionValue();
     this->IncrementCurrentIterationNumber();
 
-    double sum = -*min_element(this->previousCost.begin(), this->previousCost.end());
-    // for (size_t k = 0; k < this->previousCost.size(); ++k)
-    // {
-    //   std::cout << this->previousCost[k] << std::endl;
-    // }
-    // std::cout << "min = " << sum << std::endl;
+    
     dofNumber = this->dofNumber;
     bestDOF = this->bestDOF;
     currentDOF = this->currentDOF;
     previousSmoothedDOF = this->previousSmoothedDOF;
     grad = this->gradient;
+    
+    double sum = -*min_element(this->previousCost.begin(), this->previousCost.end());
     for(i=0; i<dofNumber;++i){
       sum += (currentDOF[i] - previousSmoothedDOF[i]) * (-grad[i]);
       sum += reg_pow2(currentDOF[i] - previousSmoothedDOF[i]) * 0.5f / this->tau;
@@ -601,10 +598,10 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
 //      maxValue += (currentDOF[i] - previousSmoothedDOF[i]) * (-grad[i]);
 //      maxValue += reg_pow2(currentDOF[i] - previousSmoothedDOF[i]) / (2. * this->tau);
 //    }
-    std::cout << "Iteration " << while_counter << ": f(u_kp1) = " << -this->currentObjFunctionValue
-      << " <=? RHS = " << sum << ", \tstep size = " << this->tau << std::endl;
+    std::cout << "Iteration " << while_counter << ": f(u_kp1) = " << this->currentObjFunctionValue
+      << " >=? RHS = " << sum << ", \tstep size = " << this->tau << std::endl;
     if(this->currentObjFunctionValue >= sum){
-      std::cout << "done" << std::endl;
+      // std::cout << "done" << std::endl;
       break;
     }
     while_counter++;
@@ -701,7 +698,8 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
   this->objFunc->UpdateBestObjFunctionValue();
   this->bestObjFunctionValue=this->currentObjFunctionValue;
 
-  if(maxIncrement<smallLength/10)
+  // if(maxIncrement<smallLength)
+  if(maxIncrement<smallLength/10.)
     startLength = 0;
   else startLength = maxIncrement;
 

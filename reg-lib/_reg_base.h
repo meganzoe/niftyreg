@@ -86,7 +86,7 @@ protected:
    bool additive_mc_nmi;
    bool useConjGradient;
    bool useForwardBackwardSplitOptimiser;
-   bool forwardBackwardSplitWeight;
+   float forwardBackwardSplitWeight;
    bool useApproxGradient;
    bool verbose;
    bool usePyramid;
