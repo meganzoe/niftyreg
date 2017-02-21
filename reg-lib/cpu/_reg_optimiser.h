@@ -224,6 +224,7 @@ class reg_ForwardBackwardSplit : public reg_optimiser<T>
 private:
   float alpha;
   float tau;
+  std::vector<T> previousCost;
   T *previousDOF;
   T *previousDOF_b;
   T *previousSmoothedDOF;

@@ -470,7 +470,7 @@ reg_ForwardBackwardSplit<T>::reg_ForwardBackwardSplit()
 {
 
   this->alpha = 1.f;
-  this->tau = 10000.f;
+  this->tau = 10.f;
   this->previousDOF=NULL;
   this->previousDOF_b=NULL;
   this->previousSmoothedDOF=NULL;
@@ -547,31 +547,67 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
                                            T smallLength,
                                            T &startLength)
 {
+  // Allocate some required variables and pointers
+  size_t i;
+  size_t dofNumber;
+  T *bestDOF;
+  T *currentDOF;
+  T *previousSmoothedDOF;
+  T *grad;
+
   // Start performing the line search
   if(this->currentIterationNumber>this->maxIterationNumber-1){
     startLength = 0;
     return;
   }
-  // Forward step
-  this->objFunc->UpdateParameters(-this->tau); // this->currentDOF = this->bestDOF - tau * grad
-  // Proximal step
-  // Need to modulate by tau
-  this->objFunc->CubicSplineSmoothTransformation(this->tau); // this->currentDOF <- B3(this->currentDOF)
 
-//  this->StoreCurrentDOF();startLength=this->tau;
-//  this->currentObjFunctionValue=this->objFunc->GetObjectiveFunctionValue();
-//  this->objFunc->UpdateBestObjFunctionValue();
-//  this->bestObjFunctionValue=this->currentObjFunctionValue;
-//  return;
+  this->previousCost.push_back(this->bestObjFunctionValue);
+  if(this->previousCost.size()>50)
+    this->previousCost.erase(this->previousCost.begin());
+
+  // Non-monotone backtracking step
+  double sum = 0.f;
+  int while_counter=0;
+  while(while_counter++<100){
+    // Forward step
+    this->objFunc->UpdateParameters(-this->tau); // this->currentDOF = this->bestDOF - tau * grad
+    // Proximal step
+    this->objFunc->CubicSplineSmoothTransformation(this->tau); // this->currentDOF <- B3(this->currentDOF)
+    // Compute the objective function
+    this->currentObjFunctionValue=this->objFunc->GetObjectiveFunctionValue();
+    this->IncrementCurrentIterationNumber();
+
+    double minValue = *min_element(this->previousCost.begin(), this->previousCost.end());
+    dofNumber = this->dofNumber;
+    bestDOF = this->bestDOF;
+    currentDOF = this->currentDOF;
+    previousSmoothedDOF = this->previousSmoothedDOF;
+    grad = this->gradient;
+    for(i=0; i<dofNumber;++i){
+      minValue += (currentDOF[i] - previousSmoothedDOF[i]) * (-grad[i]);
+      minValue -= reg_pow2(currentDOF[i] - previousSmoothedDOF[i]) / (2. * this->tau);
+    }
+//    dofNumber = this->dofNumber_b;
+//    currentDOF = this->currentDOF_b;
+//    previousSmoothedDOF = this->previousSmoothedDOF_b;
+//    grad = this->gradient_b;
+//    for(i=0; i<dofNumber;++i){
+//      maxValue += (currentDOF[i] - previousSmoothedDOF[i]) * (-grad[i]);
+//      maxValue += reg_pow2(currentDOF[i] - previousSmoothedDOF[i]) / (2. * this->tau);
+//    }
+    if(minValue<this->currentObjFunctionValue)
+      break;
+    this->tau /= 2.f;
+  }
+
   // acceleration parameter
   float temp_alpha = 0.5f + sqrtf(1.f + 4.f * reg_pow2(this->alpha)) / 2.f;
   // prediction step
   float constantRatio = (this->alpha - 1.f) / temp_alpha;
-  size_t i;
-  size_t dofNumber = this->dofNumber;
-  T *bestDOF = this->bestDOF;
-  T *currentDOF = this->currentDOF;
-  T *previousSmoothedDOF = this->previousSmoothedDOF;
+  dofNumber = this->dofNumber;
+  bestDOF = this->bestDOF;
+  currentDOF = this->currentDOF;
+  previousSmoothedDOF = this->previousSmoothedDOF;
 #ifdef _OPENMP
 #pragma omp parallel for default(none) \
    shared(dofNumber, constantRatio, bestDOF, \
@@ -597,7 +633,7 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
         (previousSmoothedDOF[i] - currentDOF[i]);
   }
 
-  double sum = 0.f;
+  sum = 0.f;
   dofNumber = this->dofNumber;
   bestDOF = this->bestDOF;
   currentDOF = this->currentDOF;
@@ -654,7 +690,7 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
   this->objFunc->UpdateBestObjFunctionValue();
   this->bestObjFunctionValue=this->currentObjFunctionValue;
 
-  if(maxIncrement<smallLength)
+  if(maxIncrement<smallLength/10)
     startLength = 0;
   else startLength = maxIncrement;
 
