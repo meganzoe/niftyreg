@@ -598,8 +598,8 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
 //      maxValue += (currentDOF[i] - previousSmoothedDOF[i]) * (-grad[i]);
 //      maxValue += reg_pow2(currentDOF[i] - previousSmoothedDOF[i]) / (2. * this->tau);
 //    }
-    std::cout << "Iteration " << while_counter << ": f(u_kp1) = " << this->currentObjFunctionValue
-      << " >=? RHS = " << sum << ", \tstep size = " << this->tau << std::endl;
+    // std::cout << "Iteration " << while_counter << ": f(u_kp1) = " << this->currentObjFunctionValue
+    //   << " >=? RHS = " << sum << ", \tstep size = " << this->tau << std::endl;
     if(this->currentObjFunctionValue >= sum){
       // std::cout << "done" << std::endl;
       break;
@@ -806,15 +806,24 @@ void reg_ForwardBackwardSplitIpiano<T>::Optimise(T maxLength,
     return;
   }
 
-  this->previousCost.push_back(this->bestObjFunctionValue);
-  if(this->previousCost.size()>50)
-    this->previousCost.erase(this->previousCost.begin());
+  this->previousCost = this->bestObjFunctionValue;
 
-  // Non-monotone backtracking step
+  // Monotone backtracking step
   double sum = 0.f;
   int while_counter=1;
+  
+  double beta = 0.85f;  // inertial weight
+  double eta = 1.2f;    // factor to adaptively decrease step size
+  double c = 1.05f;     // factor to adaptively increase step size
+  
+  // Set initial Lipschitz constant estimate
+  double lipschitzConstant = 1.99f*(1.f-beta)/this->tau;
+
 
   while(1){
+    // Update step size based on current Lipschitz constant estimate
+    this->tau = 1.99f*(1.f-beta)/lipschitzConstant;
+    
     // Forward step
     this->objFunc->UpdateParameters(-this->tau); // this->currentDOF = this->bestDOF - tau * grad
     // Proximal step
@@ -823,17 +832,16 @@ void reg_ForwardBackwardSplitIpiano<T>::Optimise(T maxLength,
     this->currentObjFunctionValue=this->objFunc->GetObjectiveFunctionValue();
     this->IncrementCurrentIterationNumber();
 
-    
     dofNumber = this->dofNumber;
     bestDOF = this->bestDOF;
     currentDOF = this->currentDOF;
     previousSmoothedDOF = this->previousSmoothedDOF;
     grad = this->gradient;
     
-    double sum = -*min_element(this->previousCost.begin(), this->previousCost.end());
+    double sum = this->previousCost;
     for(i=0; i<dofNumber;++i){
       sum += (currentDOF[i] - previousSmoothedDOF[i]) * (-grad[i]);
-      sum += reg_pow2(currentDOF[i] - previousSmoothedDOF[i]) * 0.5f / this->tau;
+      sum += reg_pow2(currentDOF[i] - previousSmoothedDOF[i]) * 0.5f * lipschitzConstant;
     }
 //    dofNumber = this->dofNumber_b;
 //    currentDOF = this->currentDOF_b;
@@ -843,14 +851,14 @@ void reg_ForwardBackwardSplitIpiano<T>::Optimise(T maxLength,
 //      maxValue += (currentDOF[i] - previousSmoothedDOF[i]) * (-grad[i]);
 //      maxValue += reg_pow2(currentDOF[i] - previousSmoothedDOF[i]) / (2. * this->tau);
 //    }
-    // std::cout << "Iteration " << while_counter << ": f(u_kp1) = " << this->currentObjFunctionValue
-      // << " >=? RHS = " << sum << ", \tstep size = " << this->tau << std::endl;
+    std::cout << "Iteration " << while_counter << ": f(u_kp1) = " << this->currentObjFunctionValue
+      << " >=? RHS = " << sum << ", \tstep size = " << this->tau << std::endl;
     if(this->currentObjFunctionValue >= sum){
-      // std::cout << "done" << std::endl;
+      std::cout << "done" << std::endl;
       break;
     }
     while_counter++;
-    this->tau /= 2.f;
+    lipschitzConstant *= eta;
   }
 
   // acceleration parameter
@@ -937,6 +945,9 @@ void reg_ForwardBackwardSplitIpiano<T>::Optimise(T maxLength,
   if(sum>std::numeric_limits<T>::epsilon())
     this->alpha=1.f;
   else this->alpha = temp_alpha;
+
+  // Increase step size
+  lipschitzConstant /= c;
 
   // We might want to use that for testing
   this->currentObjFunctionValue=this->objFunc->GetObjectiveFunctionValue();

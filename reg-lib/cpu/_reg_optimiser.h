@@ -260,7 +260,7 @@ class reg_ForwardBackwardSplitIpiano : public reg_optimiser<T>
 private:
   float alpha;
   float tau;
-  std::vector<T> previousCost;
+  float previousCost;
   T *previousDOF;
   T *previousDOF_b;
   T *previousSmoothedDOF;
