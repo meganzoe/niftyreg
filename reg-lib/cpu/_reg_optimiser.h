@@ -224,11 +224,9 @@ class reg_ForwardBackwardSplit : public reg_optimiser<T>
 private:
   float alpha;
   float tau;
-  std::vector<T> previousCost;
-  T *previousDOF;
-  T *previousDOF_b;
-  T *previousSmoothedDOF;
-  T *previousSmoothedDOF_b;
+  std::vector<float> previousCost;
+  T *previousBestDOF;
+  T *previousBestDOF_b;
 public:
    reg_ForwardBackwardSplit();
    ~reg_ForwardBackwardSplit();
@@ -262,13 +260,12 @@ template <class T>
 class reg_ForwardBackwardSplitIpiano : public reg_optimiser<T>
 {
 private:
-  float alpha;
   float tau;
-  // float previousCost;
+  float beta; // make constant
+  float eta; // make constant
+  float c; // make constant
   T *previousBestDOF;
   T *previousBestDOF_b;
-  // T *previousSmoothedDOF;
-  // T *previousSmoothedDOF_b;
 public:
    reg_ForwardBackwardSplitIpiano();
    ~reg_ForwardBackwardSplitIpiano();

@@ -4784,6 +4784,7 @@ void S_IIR_forback2 (DTYPE r, DTYPE omega, DTYPE *values, size_t number)
       reg_exit();
    }
 
+   const bool flag_debug = false;
    // Initialise memory for loop
    DTYPE *tempValues = new DTYPE[number];
    DTYPE *coeff = new DTYPE[number];
@@ -4794,77 +4795,87 @@ void S_IIR_forback2 (DTYPE r, DTYPE omega, DTYPE *values, size_t number)
    cs = 1. - 2. * r * cos(omega) + rsq;
 
    // Fix starting values assuming mirror-symmetric boundary conditions.
-   yp0 = S_hc(0, cs, r, omega) * values[0];
-   k = 0;
-   do {
-      diff = S_hc(k+1, cs, r, omega);
-      yp0 += diff * values[k++];
-      err = diff * diff;
-   } while((err > precision) && (k < number));
-   if (k >= number){
-      reg_print_fct_error("S_IIR_forback2");
-      reg_print_msg_error("Forward pass 0 did not converge");
-      char text[255];sprintf(text, "Error %g > %g", err, precision);
-      reg_print_msg_error(text);
-      reg_exit();
-   }
-   tempValues[0] = yp0;
+   // yp0 = S_hc(0, cs, r, omega) * values[0];
+   // k = 0;
+   // do {
+   //    diff = S_hc(k+1, cs, r, omega);
+   //    yp0 += diff * values[k++];
+   //    err = diff * diff;
+   //    if (flag_debug)
+   //       printf("-- Forward pass 0: k = %2d (%2d):\tError %.2e <= precision %.2e\n", k, number, err, precision);
+   // } while((err > precision) && (k < number));
+   // if (k >= number){
+   //    reg_print_fct_error("S_IIR_forback2");
+   //    reg_print_msg_error("Forward pass 0 did not converge");
+   //    char text[255];sprintf(text, "Error %g > %g", err, precision);
+   //    reg_print_msg_error(text);
+   //    reg_exit();
+   // }
+   // tempValues[0] = yp0;
 
-   yp1 = S_hc(0, cs, r, omega) * values[1];
-   yp1 += S_hc(1, cs, r, omega) * values[0];
-   k=0;
-   do {
-      diff = S_hc(k+2, cs, r, omega);
-      yp1 += diff * values[k++];
-      err = diff * diff;
-   } while((err > precision) && (k < number));
-   if (k >= number){
-      reg_print_fct_error("S_IIR_forback2");
-      reg_print_msg_error("Forward pass 1 did not converge");
-      char text[255];sprintf(text, "Error %g > %g", err, precision);
-      reg_print_msg_error(text);
-      reg_exit();
-   }
+   // yp1 = S_hc(0, cs, r, omega) * values[1];
+   // yp1 += S_hc(1, cs, r, omega) * values[0];
+   // k = 0;
+   // do {
+   //    diff = S_hc(k+2, cs, r, omega);
+   //    yp1 += diff * values[k++];
+   //    err = diff * diff;
+   //    if (flag_debug)
+   //       printf("-- Forward pass 1: k = %2d (%2d):\tError %.2e <= precision %.2e\n", k, number, err, precision);
+   // } while((err > precision) && (k < number));
+   // if (k >= number){
+   //    reg_print_fct_error("S_IIR_forback2");
+   //    reg_print_msg_error("Forward pass 1 did not converge");
+   //    char text[255];sprintf(text, "Error %g > %g", err, precision);
+   //    reg_print_msg_error(text);
+   //    reg_exit();
+   // }
 
-   tempValues[0] = yp0;
-   tempValues[1] = yp1;
+   // tempValues[0] = yp0;
+   // tempValues[1] = yp1;
+   tempValues[0] = 0;
+   tempValues[1] = 0;
    S_IIR_order2(cs, a2, a3, values, tempValues, number, false);
 
    // Fix starting values assuming mirror-symmetric boundary conditions.
-   yp0 = 0.0;
-   k = 0;
-   do {
-      diff = (S_hs(k, cs, rsq, omega) + S_hs(k+1, cs, rsq, omega));
-      yp0 += diff * values[number-1-k];
-      err = diff * diff;
-      k++;
-   } while((err > precision) && (k < number));
-   if (k >= number){
-      reg_print_fct_error("S_IIR_forback2");
-      reg_print_msg_error("Backward pass 0 did not converge");
-      char text[255];sprintf(text, "Error %g > %g", err, precision);
-      reg_print_msg_error(text);
-      reg_exit();
-   }
+   // yp0 = 0.0;
+   // k = 0;
+   // do {
+   //    diff = (S_hs(k, cs, rsq, omega) + S_hs(k+1, cs, rsq, omega));
+   //    yp0 += diff * values[number-1-k];
+   //    err = diff * diff;
+   //    k++;
+   //    if (flag_debug)
+   //       printf("-- Backward pass 0: k = %2d (%2d):\tError %.2e <= precision %.2e\n", k, number, err, precision);
+   // } while((err > precision) && (k < number));
+   // if (k >= number){
+   //    reg_print_fct_error("S_IIR_forback2");
+   //    reg_print_msg_error("Backward pass 0 did not converge");
+   //    char text[255];sprintf(text, "Error %g > %g", err, precision);
+   //    reg_print_msg_error(text);
+   //    reg_exit();
+   // }
 
-   yp1 = 0.0;
-   k = 0;
-   do {
-      diff = (S_hs(k-1, cs, rsq, omega) + S_hs(k+2, cs, rsq, omega));
-      yp1 += diff * values[number-1-k];
-      err = diff * diff;
-      k++;
-   } while((err > precision) && (k < number));
-   if (k >= number){
-      reg_print_fct_error("S_IIR_forback2");
-      reg_print_msg_error("Backward pass 1 did not converge");
-      char text[255];sprintf(text, "Error %g > %g", err, precision);
-      reg_print_msg_error(text);
-      reg_exit();
-   }
+   // yp1 = 0.0;
+   // k = 0;
+   // do {
+   //    diff = (S_hs(k-1, cs, rsq, omega) + S_hs(k+2, cs, rsq, omega));
+   //    yp1 += diff * values[number-1-k];
+   //    err = diff * diff;
+   //    k++;
+   //    if (flag_debug)
+   //       printf("-- Backward pass 1: k = %2d (%2d):\tError %.2e <= precision %.2e\n", k, number, err, precision);
+   // } while((err > precision) && (k < number));
+   // if (k >= number){
+   //    reg_print_fct_error("S_IIR_forback2");
+   //    reg_print_msg_error("Backward pass 1 did not converge");
+   //    char text[255];sprintf(text, "Error %g > %g", err, precision);
+   //    reg_print_msg_error(text);
+   //    reg_exit();
+   // }
 
-   values[number-1]=yp0;
-   values[number-2]=yp1;
+   // values[number-1]=yp0;
+   // values[number-2]=yp1;
    S_IIR_order2(cs, a2, a3, tempValues, values, number, true);
 
    delete []tempValues;
@@ -4898,6 +4909,7 @@ void reg_spline_Smooth_core(nifti_image *image,
       int increment = 1, start, end, i;
       for(i=0; i<image->ny*image->nz; ++i)
       {
+         // printf("r = %g,\t omega = %g\n", r, omega);
          start = i*image->nx;
          end = start + image->nx;
          extractLine<DTYPE>(start,end,increment,currentCoeffPtr,coeffValues);
@@ -5063,7 +5075,8 @@ void reg_spline_Smooth(nifti_image *img,
    if(img->nz>1)
       minDimension = minDimension<img->nz?minDimension:img->nz;
 
-   if(lambda<=0.0417f){ // value based on empirical testing.
+   // if(lambda<=0.0417f){ // value based on empirical testing.
+   if(lambda<=1/144.f){ // value based on empirical testing.
       // 1/144 is usually used but it seems to small for the boundary condition
       reg_print_fct_warn("reg_spline_Smooth");
       reg_print_msg_warn("Lamda value too small");
@@ -5075,7 +5088,7 @@ void reg_spline_Smooth(nifti_image *img,
       img->intent_p1==SPLINE_VEL_GRID){
       reg_getDisplacementFromDeformation(img);
    }
-   nifti_set_filenames(img, "before_crash.nii.gz", 0, 0);
+   nifti_set_filenames(img, "before_smoothing.nii.gz", 0, 0);
    nifti_image_write(img);
    switch(img->datatype)
    {
@@ -5090,6 +5103,9 @@ void reg_spline_Smooth(nifti_image *img,
       reg_print_msg_error("Only implemented for single or double precision images");
       reg_exit();
    }
+
+   nifti_set_filenames(img, "after_smoothing.nii.gz", 0, 0);
+   nifti_image_write(img);
 
    if(img->intent_p1==CUB_SPLINE_GRID ||
       img->intent_p1==SPLINE_VEL_GRID){
