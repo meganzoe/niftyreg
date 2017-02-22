@@ -141,13 +141,15 @@ protected:
    virtual void WarpFloatingImage(int);
    virtual double ComputeSimilarityMeasure();
    virtual void GetVoxelBasedGradient();
+   virtual void InitialiseSimilarity();
    virtual void SmoothGradient()
    {
-      return;
+      return;  // Need to be filled
    }
-   virtual void InitialiseSimilarity();
-   virtual void CubicSplineSmoothTransformation(float){;}
-
+   virtual void CubicSplineSmoothTransformation(float)
+   {
+      return;  // Need to be filled
+   }
    // Virtual empty functions that have to be filled
    virtual void GetDeformationField()
    {
