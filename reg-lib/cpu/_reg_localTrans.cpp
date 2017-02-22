@@ -39,6 +39,9 @@ void reg_createControlPointGrid(nifti_image **controlPointGridImage,
       *controlPointGridImage = nifti_make_new_nim(dim_cpp, NIFTI_TYPE_FLOAT32, true);
    else *controlPointGridImage = nifti_make_new_nim(dim_cpp, NIFTI_TYPE_FLOAT64, true);
 
+   (*controlPointGridImage)->dim[6]=(*controlPointGridImage)->nv=1;
+   (*controlPointGridImage)->dim[7]=(*controlPointGridImage)->nw=1;
+
    // Fill the header information
    (*controlPointGridImage)->cal_min=0;
    (*controlPointGridImage)->cal_max=0;
@@ -334,6 +337,11 @@ void reg_createSymmetricControlPointGrids(nifti_image **forwardGridImage,
       (*forwardGridImage)=nifti_make_new_nim(dim, NIFTI_TYPE_FLOAT64,true);
       (*backwardGridImage)=nifti_make_new_nim(dim, NIFTI_TYPE_FLOAT64,true);
    }
+   (*forwardGridImage)->dim[6]=(*forwardGridImage)->nv=1;
+   (*forwardGridImage)->dim[7]=(*forwardGridImage)->nw=1;
+   (*backwardGridImage)->dim[6]=(*backwardGridImage)->nv=1;
+   (*backwardGridImage)->dim[7]=(*backwardGridImage)->nw=1;
+
    // Set the control point grid spacing
    (*forwardGridImage)->pixdim[1]=(*forwardGridImage)->dx=(*backwardGridImage)->pixdim[1]=(*backwardGridImage)->dx=spacing[0];
    (*forwardGridImage)->pixdim[2]=(*forwardGridImage)->dy=(*backwardGridImage)->pixdim[2]=(*backwardGridImage)->dy=spacing[1];
@@ -4758,7 +4766,7 @@ DTYPE S_hs(int k, DTYPE cs, DTYPE rsq, DTYPE omega) {
 }
 /* *************************************************************** */
 template <class DTYPE>
-int S_IIR_forback2 (DTYPE r, DTYPE omega, DTYPE *values, size_t number)
+void S_IIR_forback2 (DTYPE r, DTYPE omega, DTYPE *values, size_t number)
 {
    DTYPE cs;
    DTYPE yp0;
@@ -4768,9 +4776,13 @@ int S_IIR_forback2 (DTYPE r, DTYPE omega, DTYPE *values, size_t number)
    DTYPE err;
    DTYPE a2, a3;
    size_t k;
-   DTYPE precision = 1e-6f;
+   DTYPE precision = 1e-12f;
 
-   if (r >= 1.0) return -2; /* z1 not less than 1 */
+   if (r >= 1.0){
+      reg_print_fct_error("S_IIR_forback2");
+      reg_print_msg_error("r should be stricly bigger than 1");
+      reg_exit();
+   }
 
    // Initialise memory for loop
    DTYPE *tempValues = new DTYPE[number];
@@ -4784,13 +4796,18 @@ int S_IIR_forback2 (DTYPE r, DTYPE omega, DTYPE *values, size_t number)
    // Fix starting values assuming mirror-symmetric boundary conditions.
    yp0 = S_hc(0, cs, r, omega) * values[0];
    k = 0;
-   precision *= precision;
    do {
       diff = S_hc(k+1, cs, r, omega);
       yp0 += diff * values[k++];
       err = diff * diff;
    } while((err > precision) && (k < number));
-   if (k >= number) return -3;     /* sum did not converge */
+   if (k >= number){
+      reg_print_fct_error("S_IIR_forback2");
+      reg_print_msg_error("Forward pass 0 did not converge");
+      char text[255];sprintf(text, "Error %g > %g", err, precision);
+      reg_print_msg_error(text);
+      reg_exit();
+   }
    tempValues[0] = yp0;
 
    yp1 = S_hc(0, cs, r, omega) * values[1];
@@ -4801,7 +4818,13 @@ int S_IIR_forback2 (DTYPE r, DTYPE omega, DTYPE *values, size_t number)
       yp1 += diff * values[k++];
       err = diff * diff;
    } while((err > precision) && (k < number));
-   if (k >= number) return -3;     /* sum did not converge */
+   if (k >= number){
+      reg_print_fct_error("S_IIR_forback2");
+      reg_print_msg_error("Forward pass 1 did not converge");
+      char text[255];sprintf(text, "Error %g > %g", err, precision);
+      reg_print_msg_error(text);
+      reg_exit();
+   }
 
    tempValues[0] = yp0;
    tempValues[1] = yp1;
@@ -4816,7 +4839,13 @@ int S_IIR_forback2 (DTYPE r, DTYPE omega, DTYPE *values, size_t number)
       err = diff * diff;
       k++;
    } while((err > precision) && (k < number));
-   if (k >= number) return -3;     /* sum did not converge */
+   if (k >= number){
+      reg_print_fct_error("S_IIR_forback2");
+      reg_print_msg_error("Backward pass 0 did not converge");
+      char text[255];sprintf(text, "Error %g > %g", err, precision);
+      reg_print_msg_error(text);
+      reg_exit();
+   }
 
    yp1 = 0.0;
    k = 0;
@@ -4826,7 +4855,13 @@ int S_IIR_forback2 (DTYPE r, DTYPE omega, DTYPE *values, size_t number)
       err = diff * diff;
       k++;
    } while((err > precision) && (k < number));
-   if (k >= number) return -3;     /* sum did not converge */
+   if (k >= number){
+      reg_print_fct_error("S_IIR_forback2");
+      reg_print_msg_error("Backward pass 1 did not converge");
+      char text[255];sprintf(text, "Error %g > %g", err, precision);
+      reg_print_msg_error(text);
+      reg_exit();
+   }
 
    values[number-1]=yp0;
    values[number-2]=yp1;
@@ -4835,17 +4870,14 @@ int S_IIR_forback2 (DTYPE r, DTYPE omega, DTYPE *values, size_t number)
    delete []tempValues;
    delete []coeff;
 
-   return 0;
+   return;
 }
 /* *************************************************************** */
 template <class DTYPE>
 void reg_spline_Smooth_core(nifti_image *image,
-                            float lambda)
+                            float r,
+                            float omega)
 {
-   if(image->intent_p2==CUB_SPLINE_GRID ||
-      image->intent_p2==SPLINE_VEL_GRID){
-      reg_getDisplacementFromDeformation(image);
-   }
    // Mostly copy pasted from scipy at the moment
    size_t voxelNumber = (size_t)image->nx * image->ny * image->nz;
    nifti_image *coeffImage = nifti_copy_nim_info(image);
@@ -4853,17 +4885,6 @@ void reg_spline_Smooth_core(nifti_image *image,
    memcpy(coeffImage->data, image->data, coeffImage->nvox*coeffImage->nbyper);
    DTYPE *coeffPtr = static_cast<DTYPE *>(coeffImage->data);
    DTYPE *imagePtr = static_cast<DTYPE *>(image->data);
-
-   // Compute r and omega from lambda
-   DTYPE r, omega;
-   DTYPE xi, tmp, tmp2;
-
-   tmp = sqrt(3. + 144.*(DTYPE)lambda);
-   xi = 1. - 96.*(DTYPE)lambda + 24.*(DTYPE)lambda * tmp;
-   omega = atan(sqrt((144.*lambda - 1.0)/xi));
-   tmp2 = sqrt(xi);
-   r = (24.*(DTYPE)lambda - 1. - tmp2)/(24.*(DTYPE)lambda) \
-         * sqrt((48.*(DTYPE)lambda + 24.*(DTYPE)lambda*tmp))/tmp2;
 
    // Loop over time points
    for(size_t tuvw=0; tuvw<(size_t)image->nt*image->nu*image->nv*image->nw; ++tuvw){
@@ -4875,12 +4896,12 @@ void reg_spline_Smooth_core(nifti_image *image,
       size_t number = (size_t)image->nx;
       DTYPE *coeffValues=new DTYPE[number];
       int increment = 1, start, end, i;
-      for(i=0; i<image->ny*image->nz; i++)
+      for(i=0; i<image->ny*image->nz; ++i)
       {
          start = i*image->nx;
          end = start + image->nx;
          extractLine<DTYPE>(start,end,increment,currentCoeffPtr,coeffValues);
-         if(S_IIR_forback2<DTYPE>(r, omega, coeffValues, number)) reg_exit();
+         S_IIR_forback2<DTYPE>(r, omega, coeffValues, number);
          restoreLine<DTYPE>(start,end,increment,currentCoeffPtr,coeffValues);
       }
       delete[] coeffValues;
@@ -4892,12 +4913,12 @@ void reg_spline_Smooth_core(nifti_image *image,
          number = (size_t)image->ny;
          coeffValues=new DTYPE[number];
          increment = image->nx;
-         for(i=0; i<image->nx*image->nz; i++)
+         for(i=0; i<image->nx*image->nz; ++i)
          {
             start = i + i/image->nx * image->nx * (image->ny - 1);
             end = start + image->nx*image->ny;
             extractLine<DTYPE>(start,end,increment,currentCoeffPtr,coeffValues);
-            if(S_IIR_forback2<DTYPE>(r, omega, coeffValues, number)) reg_exit();
+            S_IIR_forback2<DTYPE>(r, omega, coeffValues, number);
             restoreLine<DTYPE>(start,end,increment,currentCoeffPtr,coeffValues);
          }
          delete[] coeffValues;
@@ -4915,7 +4936,7 @@ void reg_spline_Smooth_core(nifti_image *image,
             start = i;
             end = start + image->nx*image->ny*image->nz;
             extractLine<DTYPE>(start,end,increment,currentCoeffPtr,coeffValues);
-            if(S_IIR_forback2<DTYPE>(r, omega, coeffValues, number)) reg_exit();
+            S_IIR_forback2<DTYPE>(r, omega, coeffValues, number);
             restoreLine<DTYPE>(start,end,increment,currentCoeffPtr,coeffValues);
          }
          delete[] coeffValues;
@@ -5024,30 +5045,55 @@ void reg_spline_Smooth_core(nifti_image *image,
    } // Loop over time point
 
    nifti_image_free(coeffImage);
-
-   if(image->intent_p2==CUB_SPLINE_GRID ||
-      image->intent_p2==SPLINE_VEL_GRID){
-      reg_getDeformationFromDisplacement(image);
-   }
 }
 /* *************************************************************** */
 void reg_spline_Smooth(nifti_image *img,
-                       float lamda)
+                       float lambda)
 {
-   if(lamda<=0.f)
+   // Compute r and omega from lambda
+   double tmp = sqrt(3. + 144.*(double)lambda);
+   double xi = 1. - 96.*(double)lambda + 24.*(double)lambda * tmp;
+   float omega = atan(sqrt((144.*lambda - 1.0)/xi));
+   double tmp2 = sqrt(xi);
+   float r = (24.*(double)lambda - 1. - tmp2)/(24.*(double)lambda) *
+         sqrt(48.*(double)lambda + 24.*(double)lambda*tmp)/tmp2;
+   float minDimension=img->nx;
+   if(img->ny>1)
+      minDimension = minDimension<img->ny?minDimension:img->ny;
+   if(img->nz>1)
+      minDimension = minDimension<img->nz?minDimension:img->nz;
+
+   if(lambda<=0.0417f){ // value based on empirical testing.
+      // 1/144 is usually used but it seems to small for the boundary condition
+      reg_print_fct_warn("reg_spline_Smooth");
+      reg_print_msg_warn("Lamda value too small");
+      reg_print_msg_warn("No smoothing is performed");
       return;
+   }
+
+   if(img->intent_p1==CUB_SPLINE_GRID ||
+      img->intent_p1==SPLINE_VEL_GRID){
+      reg_getDisplacementFromDeformation(img);
+   }
+   nifti_set_filenames(img, "before_crash.nii.gz", 0, 0);
+   nifti_image_write(img);
    switch(img->datatype)
    {
    case NIFTI_TYPE_FLOAT32:
-      reg_spline_Smooth_core<float>(img, lamda);
+      reg_spline_Smooth_core<float>(img, r, omega);
       break;
    case NIFTI_TYPE_FLOAT64:
-      reg_spline_Smooth_core<double>(img, lamda);
+      reg_spline_Smooth_core<double>(img, r, omega);
       break;
    default:
       reg_print_fct_error("reg_spline_Smooth_core");
       reg_print_msg_error("Only implemented for single or double precision images");
       reg_exit();
+   }
+
+   if(img->intent_p1==CUB_SPLINE_GRID ||
+      img->intent_p1==SPLINE_VEL_GRID){
+      reg_getDeformationFromDisplacement(img);
    }
    return;
 }
