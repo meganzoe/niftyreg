@@ -264,11 +264,11 @@ class reg_ForwardBackwardSplitIpiano : public reg_optimiser<T>
 private:
   float alpha;
   float tau;
-  float previousCost;
-  T *previousDOF;
-  T *previousDOF_b;
-  T *previousSmoothedDOF;
-  T *previousSmoothedDOF_b;
+  // float previousCost;
+  T *previousBestDOF;
+  T *previousBestDOF_b;
+  // T *previousSmoothedDOF;
+  // T *previousSmoothedDOF_b;
 public:
    reg_ForwardBackwardSplitIpiano();
    ~reg_ForwardBackwardSplitIpiano();
