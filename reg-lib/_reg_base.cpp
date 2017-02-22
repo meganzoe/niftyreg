@@ -33,6 +33,7 @@ reg_base<T>::reg_base(int refTimePoint,int floTimePoint)
    this->useConjGradient=true;
    this->useApproxGradient=false;
    this->useForwardBackwardSplitOptimiser=false;
+   this->useForwardBackwardSplitOptimiserIpiano=false;
    this->forwardBackwardSplitWeight=1.f;
 
    this->measure_ssd=NULL;
@@ -427,6 +428,7 @@ void reg_base<T>::UseConjugateGradient()
 {
    this->useConjGradient = true;
    this->useForwardBackwardSplitOptimiser = false;
+   this->useForwardBackwardSplitOptimiserIpiano = false;
 #ifndef NDEBUG
    reg_print_fct_debug("reg_base<T>::UseConjugateGradient");
 #endif
@@ -446,6 +448,7 @@ void reg_base<T>::UseForwardBackwardSplitOptimiser(float w)
 {
    this->useConjGradient = false;
    this->useForwardBackwardSplitOptimiser = true;
+   this->useForwardBackwardSplitOptimiserIpiano = false;
    this->forwardBackwardSplitWeight = w;
 #ifndef NDEBUG
    reg_print_fct_debug("reg_base<T>::UseForwardBackwardSplitOptimiser");
@@ -453,11 +456,34 @@ void reg_base<T>::UseForwardBackwardSplitOptimiser(float w)
 }
 /* *************************************************************** */
 template<class T>
-void reg_base<T>::DoNoTUseForwardBackwardSplitOptimiser()
+void reg_base<T>::DoNotUseForwardBackwardSplitOptimiser()
 {
    this->useForwardBackwardSplitOptimiser = false;
+   // this->useForwardBackwardSplitOptimiserIpiano = false;
 #ifndef NDEBUG
    reg_print_fct_debug("reg_base<T>::DoNoTUseForwardBackwardSplitOptimiser");
+#endif
+}
+/* *************************************************************** */
+template<class T>
+void reg_base<T>::UseForwardBackwardSplitOptimiserIpiano(float w)
+{
+   this->useConjGradient = false;
+   this->useForwardBackwardSplitOptimiser = false;
+   this->useForwardBackwardSplitOptimiserIpiano = true;
+   this->forwardBackwardSplitWeight = w;
+#ifndef NDEBUG
+   reg_print_fct_debug("reg_base<T>::UseForwardBackwardSplitOptimiserIpiano");
+#endif
+}
+/* *************************************************************** */
+template<class T>
+void reg_base<T>::DoNotUseForwardBackwardSplitOptimiserIpiano()
+{
+   // this->useForwardBackwardSplitOptimiser = false;
+   this->useForwardBackwardSplitOptimiserIpiano = false;
+#ifndef NDEBUG
+   reg_print_fct_debug("reg_base<T>::DoNoTUseForwardBackwardSplitOptimiserIpiano");
 #endif
 }
 /* *************************************************************** */
@@ -1161,6 +1187,9 @@ void reg_base<T>::SetOptimiser()
    }
    else if(this->useForwardBackwardSplitOptimiser){
       this->optimiser=new reg_ForwardBackwardSplit<T>();
+   }
+   else if(this->useForwardBackwardSplitOptimiserIpiano){
+      this->optimiser=new reg_ForwardBackwardSplitIpiano<T>();
    }
    else this->optimiser=new reg_optimiser<T>();
 #ifndef NDEBUG

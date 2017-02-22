@@ -86,6 +86,7 @@ protected:
    bool additive_mc_nmi;
    bool useConjGradient;
    bool useForwardBackwardSplitOptimiser;
+   bool useForwardBackwardSplitOptimiserIpiano;
    float forwardBackwardSplitWeight;
    bool useApproxGradient;
    bool verbose;
@@ -251,7 +252,9 @@ public:
    void UseApproximatedGradient();
    void DoNotUseApproximatedGradient();
    void UseForwardBackwardSplitOptimiser(float);
-   void DoNoTUseForwardBackwardSplitOptimiser();
+   void DoNotUseForwardBackwardSplitOptimiser();
+   void UseForwardBackwardSplitOptimiserIpiano(float);
+   void DoNotUseForwardBackwardSplitOptimiserIpiano();
    // Measure of similarity related functions
 //    void ApproximateParzenWindow();
 //    void DoNotApproximateParzenWindow();

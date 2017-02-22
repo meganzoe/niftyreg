@@ -122,7 +122,8 @@ void Usage(char *exec)
    reg_print_info(exec, "\t-nopy\t\t\tDo not use a pyramidal approach");
    reg_print_info(exec, "\t-noConj\t\t\tTo not use the conjuage gradient optimisation but a simple gradient ascent");
    reg_print_info(exec, "\t-pert <int>\t\tTo add perturbation step(s) after each optimisation scheme");
-   reg_print_info(exec, "\tfbs <float>\t\tForward backward split optimisation. Cubic smoothing filter is used for regulisation");
+   reg_print_info(exec, "\t-fista <float>\t\tForward backward split optimisation with FISTA. Cubic smoothing filter is used for regulisation");
+   reg_print_info(exec, "\t-ipiano <float>\t\tForward backward split optimisation with iPiano. Cubic smoothing filter is used for regulisation");
    reg_print_info(exec, "\t\t\t\tThe floating value (>0.f) define the lambda of the cubic smoothing filer.");
    reg_print_info(exec, "\t\t\t\tAll other regularisation terms are set to 0.");
    reg_print_info(exec, "");
@@ -698,9 +699,13 @@ int main(int argc, char **argv)
       {
          REG->UseApproximatedGradient();
       }
-      else if(strcmp(argv[i], "-fbs")==0 || strcmp(argv[i], "--fbs")==0)
+      else if(strcmp(argv[i], "-fista")==0 || strcmp(argv[i], "--fista")==0)
       {
          REG->UseForwardBackwardSplitOptimiser(atof(argv[++i]));
+      }
+      else if(strcmp(argv[i], "-ipiano")==0 || strcmp(argv[i], "--ipiano")==0)
+      {
+         REG->UseForwardBackwardSplitOptimiserIpiano(atof(argv[++i]));
       }
       else if(strcmp(argv[i], "-interp")==0 || strcmp(argv[i], "--interp")==0)
       {

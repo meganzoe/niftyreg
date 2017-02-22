@@ -218,6 +218,13 @@ void reg_f3d<T>::CheckParameters()
       this->jacobianLogWeight = 0.;
       this->landmarkRegWeight = 0.;
    }
+   // All regularisation weights are set to zeros
+   if(this->useForwardBackwardSplitOptimiserIpiano){
+      this->bendingEnergyWeight = 0.;
+      this->linearEnergyWeight = 0.;
+      this->jacobianLogWeight = 0.;
+      this->landmarkRegWeight = 0.;
+   }
    // NORMALISE THE OBJECTIVE FUNCTION WEIGHTS
    if(strcmp(this->executableName,"NiftyReg F3D")==0 ||
          strcmp(this->executableName,"NiftyReg F3D GPU")==0)

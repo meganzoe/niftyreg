@@ -251,6 +251,42 @@ public:
 };
 /* *************************************************************** */
 /* *************************************************************** */
+/** @class reg_ForwardBackwardSplit
+ * @brief Forward Backward Split optimisation
+ */
+template <class T>
+class reg_ForwardBackwardSplitIpiano : public reg_optimiser<T>
+{
+private:
+  float alpha;
+  float tau;
+  std::vector<T> previousCost;
+  T *previousDOF;
+  T *previousDOF_b;
+  T *previousSmoothedDOF;
+  T *previousSmoothedDOF_b;
+public:
+   reg_ForwardBackwardSplitIpiano();
+   ~reg_ForwardBackwardSplitIpiano();
+   virtual void Initialise(size_t nvox,
+                           int dim,
+                           bool optX,
+                           bool optY,
+                           bool optZ,
+                           size_t maxit,
+                           size_t start,
+                           InterfaceOptimiser *o,
+                           T *cppData=NULL,
+                           T *gradData=NULL,
+                           size_t nvox_b=0,
+                           T *cppData_b=NULL,
+                           T *gradData_b=NULL);
+   virtual void Optimise(T maxLength,
+                         T smallLength,
+                         T &startLength);
+};
+/* *************************************************************** */
+/* *************************************************************** */
 #include "_reg_optimiser.cpp"
 
 #endif // _REG_OPTIMISER_H

@@ -421,6 +421,8 @@ void reg_f3d_sym<T>::CheckParameters()
    reg_f3d<T>::CheckParameters();
    if(this->useForwardBackwardSplitOptimiser)
       this->inverseConsistencyWeight = 0.f;
+   if(this->useForwardBackwardSplitOptimiserIpiano)
+      this->inverseConsistencyWeight = 0.f;
 
    // CHECK THE FLOATING MASK DIMENSION IF IT IS DEFINED
    if(this->floatingMaskImage!=NULL)
@@ -1533,6 +1535,8 @@ void reg_f3d_sym<T>::SetOptimiser()
       this->optimiser=new reg_conjugateGradient<T>();
    else if(this->useForwardBackwardSplitOptimiser)
       this->optimiser=new reg_ForwardBackwardSplit<T>();
+   else if(this->useForwardBackwardSplitOptimiserIpiano)
+      this->optimiser=new reg_ForwardBackwardSplitIpiano<T>();
    else this->optimiser=new reg_optimiser<T>();
    this->optimiser->Initialise(this->controlPointGrid->nvox,
                                this->controlPointGrid->nz>1?3:2,
