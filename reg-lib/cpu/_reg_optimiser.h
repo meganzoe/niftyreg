@@ -248,6 +248,10 @@ public:
    virtual void Optimise(T maxLength,
                          T smallLength,
                          T &startLength);
+
+   virtual const T* GetResidual(T *afterForward=NULL, T *afterProximal=NULL) const;
+
+   virtual const float GetRelativeResidual(T *afterForward=NULL, T *afterProximal=NULL) const;
 };
 /* *************************************************************** */
 /* *************************************************************** */

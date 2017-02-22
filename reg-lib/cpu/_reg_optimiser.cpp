@@ -569,9 +569,12 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
   double sum = 0.f;
   int while_counter=1;
 
+  // T foo;
+
   while(1){
     // Forward step
     this->objFunc->UpdateParameters(-this->tau); // this->currentDOF = this->bestDOF - tau * grad
+    // foo = *(this->currentDOF);
     // Proximal step
     this->objFunc->CubicSplineSmoothTransformation(this->tau); // this->currentDOF <- B3(this->currentDOF)
     // Compute the objective function
@@ -607,6 +610,12 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
     while_counter++;
     this->tau /= 2.f;
   }
+
+  // Compute residual
+  // BUG: It should be GetRelativeResidual(afterForward, this->currentDOF)
+  // float relativeResidual = this->GetRelativeResidual(&foo, this->currentDOF);
+  // float relativeResidual = this->GetRelativeResidual(this->bestDOF, this->currentDOF);
+  // printf("Relative Residual = %.2e (at step size = %.2f\n", relativeResidual, this->tau);
 
   // acceleration parameter
   float temp_alpha = 0.5f + sqrtf(1.f + 4.f * reg_pow2(this->alpha)) / 2.f;
@@ -706,6 +715,59 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
 #ifndef NDEBUG
   reg_print_msg_debug("reg_ForwardBackwardSplit<T>::~reg_ForwardBackwardSplit() called");
 #endif
+}
+/* *************************************************************** */
+/* *************************************************************** */
+template <class T>
+const T* reg_ForwardBackwardSplit<T>::GetResidual(T *afterForward, T *afterProximal) const
+{
+
+    T *residual;
+    T *grad = this->gradient;   // grad f(afterProximal)
+
+    for(size_t i=0; i<this->dofNumber; ++i){
+      residual[i] += -grad[i] + this->tau*(afterForward[i] - afterProximal[i]);
+    }
+  return residual;
+}
+/* *************************************************************** */
+/* *************************************************************** */
+// Compute relative residual as in Goldstein2014, equation (42)
+template <class T>
+const float reg_ForwardBackwardSplit<T>::GetRelativeResidual(T *afterForward, T *afterProximal) const
+{
+
+    const T *residual = this->GetResidual(afterForward, afterProximal);
+    T *grad = this->gradient;
+    float tmp;
+    
+    float normResidual = 0.f;
+    float normGradient = 0.f;
+    float normFBSSteps = 0.f;
+
+    for(size_t i=0; i<this->dofNumber; ++i){
+      normResidual += residual[i] * residual[i];
+      normGradient += grad[i] * grad[i];
+
+      tmp = afterForward[i] - afterProximal[i];
+      normFBSSteps += tmp * tmp;
+    }
+
+    normResidual = sqrtf(normResidual);
+    normGradient = sqrtf(normGradient);
+    normFBSSteps = sqrtf(normFBSSteps) / this->tau;
+
+    printf("\tnormResidual = %.2f\n", normResidual);
+    printf("\tnormGradient = %.2f\n", normGradient);
+    printf("\tnormFBSSteps = %.2f\n", normFBSSteps);
+    
+    // max(normGradient, normFBSSteps)
+    tmp = (normGradient<normFBSSteps)?normFBSSteps:normGradient;
+
+    // Compute relative residual
+    tmp = normResidual/(tmp + std::numeric_limits<T>::epsilon());
+
+  return tmp;
 }
 /* *************************************************************** */
 /* *************************************************************** */
