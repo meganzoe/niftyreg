@@ -225,6 +225,8 @@ private:
   float alpha;
   float tau;
   std::vector<float> previousCost;
+  T *previousSmoothedDOF;
+  T *previousSmoothedDOF_b;
   T *previousBestDOF;
   T *previousBestDOF_b;
 public:

@@ -470,9 +470,11 @@ reg_ForwardBackwardSplit<T>::reg_ForwardBackwardSplit()
 {
 
   this->alpha = 1.f;    // acceleration parameter
-  this->tau = 0.5f;     // step size
+  this->tau = 1.f;     // step size
   this->previousBestDOF=NULL;
   this->previousBestDOF_b=NULL;
+  this->previousSmoothedDOF=NULL;
+  this->previousSmoothedDOF_b=NULL;
 #ifndef NDEBUG
    reg_print_msg_debug("reg_ForwardBackwardSplit<T>::reg_ForwardBackwardSplit() called");
 #endif
@@ -483,9 +485,9 @@ template <class T>
 reg_ForwardBackwardSplit<T>::~reg_ForwardBackwardSplit()
 {
   if(this->previousBestDOF!=NULL) free(this->previousBestDOF);
-  // if(this->previousSmoothedDOF!=NULL) free(this->previousSmoothedDOF);
+  if(this->previousSmoothedDOF!=NULL) free(this->previousSmoothedDOF);
   if(this->previousBestDOF_b!=NULL) free(this->previousBestDOF_b);
-  // if(this->previousSmoothedDOF_b!=NULL) free(this->previousSmoothedDOF_b);
+  if(this->previousSmoothedDOF_b!=NULL) free(this->previousSmoothedDOF_b);
 #ifndef NDEBUG
    reg_print_msg_debug("reg_ForwardBackwardSplit<T>::~reg_ForwardBackwardSplit() called");
 #endif
@@ -525,11 +527,19 @@ void reg_ForwardBackwardSplit<T>::Initialise(size_t nvox,
   this->previousBestDOF=(T *)malloc(this->dofNumber*sizeof(T));
   memcpy(this->previousBestDOF,this->currentDOF,this->dofNumber*sizeof(T));
 
+  if(this->previousSmoothedDOF!=NULL) free(this->previousSmoothedDOF);
+  this->previousSmoothedDOF=(T *)malloc(this->dofNumber*sizeof(T));
+  memcpy(this->previousSmoothedDOF,this->currentDOF,this->dofNumber*sizeof(T));
+
   if(cppData_b!=NULL && gradData_b!=NULL && nvox_b>0)
   {
      if(this->previousBestDOF_b!=NULL) free(this->previousBestDOF_b);
      this->previousBestDOF_b=(T *)malloc(this->dofNumber_b*sizeof(T));
      memcpy(this->previousBestDOF_b,this->currentDOF_b,this->dofNumber_b*sizeof(T));
+
+     if(this->previousSmoothedDOF_b!=NULL) free(this->previousSmoothedDOF_b);
+     this->previousSmoothedDOF_b=(T *)malloc(this->dofNumber_b*sizeof(T));
+     memcpy(this->previousSmoothedDOF_b,this->currentDOF_b,this->dofNumber_b*sizeof(T));
   }
 }
 /* *************************************************************** */
@@ -541,11 +551,11 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
 {
   // Allocate some required variables and pointers
   size_t i;
-  size_t dofNumber;
-  T *bestDOF;
-  T *currentDOF;
-  T *previousSmoothedDOF;
-  T *grad;
+  T *currentSmoothedDOF = (T *)malloc(this->dofNumber*sizeof(T));
+  T *currentSmoothedDOF_b = NULL;
+  if(this->dofNumber_b){
+    currentSmoothedDOF_b = (T *)malloc(this->dofNumber*sizeof(T));
+  }
 
   // Start performing the line search
   if(this->currentIterationNumber>this->maxIterationNumber-1){
@@ -559,144 +569,96 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
 
   // Non-monotone backtracking step
   double sum = 0.f;
-  int while_counter = 1;
 
   float alpha_kp1;
   float alpha_ratio;
 
-  // T foo;
-
+  // acceleration parameter
+  alpha_kp1 = 0.5f + 0.5f * sqrtf(1.f + 4.f * reg_pow2(this->alpha));
+  alpha_ratio = (this->alpha - 1.f) / alpha_kp1;
+  
   while(1){
     // Forward step
     this->objFunc->UpdateParameters(-this->tau); // this->currentDOF = this->bestDOF - tau * grad
-    // foo = *(this->currentDOF);
     
     // Proximal step
     this->objFunc->CubicSplineSmoothTransformation(this->tau); // this->currentDOF <- B3(this->currentDOF)
     
-    // acceleration parameter
-    alpha_kp1 = 0.5f + sqrtf(1.f + 4.f * reg_pow2(this->alpha)) / 2.f;
-    alpha_ratio = (this->alpha - 1.f) / alpha_kp1;
+    memcpy(currentSmoothedDOF, this->currentDOF, this->dofNumber*sizeof(T));
+    if(this->dofNumber_b){
+      memcpy(currentSmoothedDOF_b, this->currentDOF_b, this->dofNumber*sizeof(T));
+    }
     
     // prediction step
-    for(i=0; i<dofNumber; ++i){
+    for(i=0; i<this->dofNumber; ++i){
       this->currentDOF[i] += alpha_ratio * (this->currentDOF[i] - this->bestDOF[i]);
+    }
+    for(i=0; i<this->dofNumber_b; ++i){
+      this->currentDOF_b[i] += alpha_ratio * (this->currentDOF_b[i] - this->bestDOF_b[i]);
     }
 
     // Compute the objective function
     this->currentObjFunctionValue = this->objFunc->GetObjectiveFunctionValue();
-    
-    // dofNumber = this->dofNumber;
-    // bestDOF = this->bestDOF;
-    // currentDOF = this->currentDOF;
-    // previousSmoothedDOF = this->previousSmoothedDOF;
-    // grad = this->gradient;
-    
+    this->IncrementCurrentIterationNumber();
+        
     sum = -*min_element(this->previousCost.begin(), this->previousCost.end());
     for(i=0; i<this->dofNumber;++i){
       sum += (this->currentDOF[i] - this->bestDOF[i]) * (-this->gradient[i]);
       sum += reg_pow2(this->currentDOF[i] - this->bestDOF[i]) * 0.5f / this->tau;
     }
+    for(i=0; i<this->dofNumber_b;++i){
+      sum += (this->currentDOF_b[i] - this->bestDOF_b[i]) * (-this->gradient_b[i]);
+      sum += reg_pow2(this->currentDOF_b[i] - this->bestDOF_b[i]) * 0.5f / this->tau;
+    }
 
-    std::cout << "Iteration " << while_counter << ": f(u_kp1) = " << this->currentObjFunctionValue
+    std::cout << "f(u_kp1) = " << this->currentObjFunctionValue
       << " >=? RHS = " << sum << ", \tstep size = " << this->tau << std::endl;
     if(this->currentObjFunctionValue >= sum){
-      // std::cout << "done" << std::endl;
+      std::cout << "done" << std::endl;
       break;
     }
-    while_counter++;
-    this->tau /= 2.f;
+    // if(this->currentObjFunctionValue >= sum){
+    //   break;
+    // }
+    this->tau /= 1.3f;
   }
 
-  // Increment iteration
-  this->IncrementCurrentIterationNumber();
+  // Check for oscillation and restart alpha if needed
+  sum = 0;
+  for(size_t i=0; i<this->dofNumber; ++i){
+    sum += (this->currentDOF[i] - currentSmoothedDOF[i]) *
+        (currentSmoothedDOF[i] - this->previousSmoothedDOF[i]) ;
+  }
+  for(size_t i=0; i<this->dofNumber_b; ++i){
+    sum += (this->currentDOF_b[i] - currentSmoothedDOF_b[i]) *
+        (currentSmoothedDOF_b[i] - this->previousSmoothedDOF_b[i]) ;
+  }
+  if(sum > std::numeric_limits<T>::epsilon())
+    this->alpha=1.f;
+  else this->alpha = alpha_kp1;
 
-  // Compute residual
-  // BUG: It should be GetRelativeResidual(afterForward, this->currentDOF)
-  // float relativeResidual = this->GetRelativeResidual(&foo, this->currentDOF);
-  // float relativeResidual = this->GetRelativeResidual(this->bestDOF, this->currentDOF);
-  // printf("Relative Residual = %.2e (at step size = %.2f\n", relativeResidual, this->tau);
-
-//   dofNumber = this->dofNumber;
-//   bestDOF = this->bestDOF;
-//   currentDOF = this->currentDOF;
-//   previousSmoothedDOF = this->previousSmoothedDOF;
-// #ifdef _OPENMP
-// #pragma omp parallel for default(none) \
-//    shared(dofNumber, constantRatio, bestDOF, \
-//   currentDOF, previousSmoothedDOF) \
-//    private(i)
-// #endif
-//   for(i=0; i<dofNumber; ++i){
-//     bestDOF[i] = currentDOF[i] - constantRatio *
-//         (previousSmoothedDOF[i] - currentDOF[i]);
-//   }
-//   dofNumber = this->dofNumber_b;
-//   bestDOF = this->bestDOF_b;
-//   currentDOF = this->currentDOF_b;
-//   previousSmoothedDOF = this->previousSmoothedDOF_b;
-// #ifdef _OPENMP
-// #pragma omp parallel for default(none) \
-//    shared(dofNumber, constantRatio, bestDOF, \
-//   currentDOF, previousSmoothedDOF) \
-//    private(i)
-// #endif
-//   for(i=0; i<dofNumber; ++i){
-//     bestDOF[i] = currentDOF[i] - constantRatio *
-//         (previousSmoothedDOF[i] - currentDOF[i]);
-//   }
-
-//   sum = 0.f;
-//   dofNumber = this->dofNumber;
-//   bestDOF = this->bestDOF;
-//   currentDOF = this->currentDOF;
-//   previousSmoothedDOF = this->previousSmoothedDOF;
-// #ifdef _OPENMP
-// #pragma omp parallel for default(none) \
-//    shared(dofNumber, constantRatio, bestDOF, \
-//   currentDOF, previousSmoothedDOF) \
-//    private(i) \
-//   reduction(+:sum)
-// #endif
-//   for(size_t i=0; i<dofNumber; ++i)
-//     sum += (bestDOF[i] - currentDOF[i]) *
-//         (currentDOF[i] - previousSmoothedDOF[i]) ;
-//   dofNumber = this->dofNumber_b;
-//   bestDOF = this->bestDOF_b;
-//   currentDOF = this->currentDOF_b;
-//   previousSmoothedDOF = this->previousSmoothedDOF_b;
-// #ifdef _OPENMP
-// #pragma omp parallel for default(none) \
-//    shared(dofNumber, constantRatio, bestDOF, \
-//   currentDOF, previousSmoothedDOF) \
-//    private(i) \
-//   reduction(+:sum)
-// #endif
-//   for(size_t i=0; i<dofNumber; ++i)
-//     sum += (bestDOF[i] - currentDOF[i]) *
-//         (currentDOF[i] - previousSmoothedDOF[i]) ;
-
+  // Prepare for next iterate
   memcpy(this->previousBestDOF, this->bestDOF, this->dofNumber*sizeof(T));
-  memcpy(this->bestDOF, this->currentDOF, this->dofNumber*sizeof(T));
-  // if(this->dofNumber_b>0)
-  //   memcpy(this->previousBestDOF_b, this->bestDOF_b, this->dofNumber_b*sizeof(T));
+  memcpy(this->previousSmoothedDOF, currentSmoothedDOF, this->dofNumber*sizeof(T));
+
+
+  if(this->dofNumber_b){
+    memcpy(this->previousBestDOF_b, this->bestDOF_b, this->dofNumber_b*sizeof(T));
+  }
+
+  // Implements memcpy(this->bestDOF, this->currentDOF, this->dofNumber*sizeof(T));
+  this->StoreCurrentDOF();
 
   // Check for convergence and store the current DOF
   double maxIncrement=0;
   for(size_t i=0; i<this->dofNumber; ++i){
-    T currentVal = (this->bestDOF[i]-this->previousBestDOF[i]);
+    T currentVal = abs(this->bestDOF[i]-this->previousBestDOF[i]);
     maxIncrement = currentVal>maxIncrement?currentVal:maxIncrement;
   }
-  // for(size_t i=0; i<this->dofNumber_b; ++i){
-  //   T currentVal = (this->bestDOF_b[i]-this->previousDOF_b[i]);
-  //   maxIncrement = currentVal>maxIncrement?currentVal:maxIncrement;
-  //   if(this->dofNumber_b>0)
-  //     memcpy(this->previousDOF_b, this->bestDOF_b, this->dofNumber_b*sizeof(T));
-  // }
-
-  if(sum > std::numeric_limits<T>::epsilon())
-    this->alpha=1.f;
-  else this->alpha = alpha_kp1;
+  for(size_t i=0; i<this->dofNumber_b; ++i){
+    T currentVal = abs(this->bestDOF_b[i]-this->previousBestDOF_b[i]);
+    maxIncrement = currentVal>maxIncrement?currentVal:maxIncrement;
+  }
 
   // We might want to use that for testing
   this->currentObjFunctionValue=this->objFunc->GetObjectiveFunctionValue();
@@ -704,13 +666,15 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
   this->bestObjFunctionValue=this->currentObjFunctionValue;
 
   // if(maxIncrement<smallLength)
-  if(maxIncrement<smallLength/10.)
-    startLength = 0;
-  else startLength = maxIncrement;
+  //   startLength = 0;
+  // else 
+  startLength = maxIncrement;
 
 #ifndef NDEBUG
   reg_print_msg_debug("reg_ForwardBackwardSplit<T>::~reg_ForwardBackwardSplit() called");
 #endif
+  free(currentSmoothedDOF);
+  free(currentSmoothedDOF_b);
 }
 /* *************************************************************** */
 /* *************************************************************** */
@@ -890,10 +854,10 @@ void reg_ForwardBackwardSplitIpiano<T>::Optimise(T maxLength,
 
     std::cout << "Iteration " << while_counter << ": f(u_kp1) = " << this->currentObjFunctionValue
       << " >=? RHS = " << sum << ", \tstep size = " << this->tau << std::endl;
-    // if(this->currentObjFunctionValue >= sum){
-      // std::cout << "done" << std::endl;
+    if(this->currentObjFunctionValue >= sum){
+      std::cout << "done" << std::endl;
       break;
-    // }
+    }
     while_counter++;
     lipschitzConstant *= this->eta;
   }
