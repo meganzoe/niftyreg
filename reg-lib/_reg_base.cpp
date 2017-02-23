@@ -1616,7 +1616,9 @@ void reg_base<T>::Run()
             this->GetObjectiveFunctionGradient();
 
             // Normalise the gradient
-            this->NormaliseGradient();
+            if(!this->useForwardBackwardSplitOptimiser and !this->useForwardBackwardSplitOptimiserIpiano){
+               this->NormaliseGradient();
+            }
 
             // Initialise the line search initial step size
             currentSize=currentSize>maxStepSize?maxStepSize:currentSize;

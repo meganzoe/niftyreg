@@ -4776,7 +4776,7 @@ void S_IIR_forback2 (DTYPE r, DTYPE omega, DTYPE *values, size_t number)
    DTYPE err;
    DTYPE a2, a3;
    size_t k;
-   DTYPE precision = 1e-4f;
+   DTYPE precision = 1e-2f;
 
    if (r >= 1.0){
       reg_print_fct_error("S_IIR_forback2");
@@ -5085,8 +5085,8 @@ void reg_spline_Smooth(nifti_image *img,
       img->intent_p1==SPLINE_VEL_GRID){
       reg_getDisplacementFromDeformation(img);
    }
-   nifti_set_filenames(img, "before_smoothing.nii.gz", 0, 0);
-   nifti_image_write(img);
+   // nifti_set_filenames(img, "before_smoothing.nii.gz", 0, 0);
+   // nifti_image_write(img);
    switch(img->datatype)
    {
    case NIFTI_TYPE_FLOAT32:
@@ -5101,8 +5101,8 @@ void reg_spline_Smooth(nifti_image *img,
       reg_exit();
    }
 
-   nifti_set_filenames(img, "after_smoothing.nii.gz", 0, 0);
-   nifti_image_write(img);
+   // nifti_set_filenames(img, "after_smoothing.nii.gz", 0, 0);
+   // nifti_image_write(img);
 
    if(img->intent_p1==CUB_SPLINE_GRID ||
       img->intent_p1==SPLINE_VEL_GRID){
