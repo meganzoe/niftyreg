@@ -469,7 +469,7 @@ reg_ForwardBackwardSplit<T>::reg_ForwardBackwardSplit()
    :reg_optimiser<T>::reg_optimiser()
 {
 
-  this->tau = 20.f;     // step size
+  this->tau = 1000.f;     // step size
   this->alpha = 1.f;    // acceleration parameter
   this->previousBestDOF=NULL;
   this->previousBestDOF_b=NULL;
@@ -570,8 +570,11 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
   // Non-monotone backtracking step
   double sum = 0.f;
 
+  const bool adjustStepSize = 1;
+
   float alpha_kp1;
   float alpha_ratio;
+  int sign_cost = 0;
 
   // acceleration parameter
   alpha_kp1 = 0.5f + 0.5f * sqrtf(1.f + 4.f * reg_pow2(this->alpha));
@@ -599,25 +602,37 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
 
     // Compute the objective function
     this->currentObjFunctionValue = this->objFunc->GetObjectiveFunctionValue();
+
+    // sign_cost = this->signum(this->currentObjFunctionValue);
+    // std::cout << sign_cost << std::endl;
+
     this->IncrementCurrentIterationNumber();
         
-    sum = -*min_element(this->previousCost.begin(), this->previousCost.end());
-    for(i=0; i<this->dofNumber;++i){
-      sum += (this->currentDOF[i] - this->bestDOF[i]) * (-this->gradient[i]);
-      sum += reg_pow2(this->currentDOF[i] - this->bestDOF[i]) * 0.5f / this->tau;
+    if (adjustStepSize){
+      sum = - (*min_element(this->previousCost.begin(), this->previousCost.end()));
+      for(i=0; i<this->dofNumber;++i){
+        sum += (this->currentDOF[i] - this->bestDOF[i]) * (-this->gradient[i]);
+        sum += reg_pow2(this->currentDOF[i] - this->bestDOF[i]) * 0.5f / this->tau;
+      }
+      for(i=0; i<this->dofNumber_b;++i){
+        sum += (this->currentDOF_b[i] - this->bestDOF_b[i]) * (-this->gradient_b[i]);
+        sum += reg_pow2(this->currentDOF_b[i] - this->bestDOF_b[i]) * 0.5f / this->tau;
+      }
+  
+      printf("\tFISTA -- f(u_kp1) = %g >=? RHS = %g\n", this->currentObjFunctionValue, sum);
+      printf("\tFISTA -- step size = %g\n", this->tau);
+      printf("\tFISTA -- alpha_kp1 = %g\t (alpha_k-1)/alpha_kp1 = %g\n", alpha_kp1, alpha_ratio);
+      if(this->currentObjFunctionValue >= sum){
+        // std::cout << "done" << std::endl;
+        break;
+      }
+      this->tau /= 1.3f;
     }
-    for(i=0; i<this->dofNumber_b;++i){
-      sum += (this->currentDOF_b[i] - this->bestDOF_b[i]) * (-this->gradient_b[i]);
-      sum += reg_pow2(this->currentDOF_b[i] - this->bestDOF_b[i]) * 0.5f / this->tau;
-    }
-
-    std::cout << "f(u_kp1) = " << this->currentObjFunctionValue
-      << " >=? RHS = " << sum << ", \tstep size = " << this->tau << std::endl;
-    if(this->currentObjFunctionValue >= sum){
-      // std::cout << "done" << std::endl;
+    else{
+      printf("\tFISTA -- step size = %g\n", this->tau);
+      printf("\tFISTA -- alpha_kp1 = %g\t (alpha_k-1)/alpha_kp1 = %g\n", alpha_kp1, alpha_ratio);
       break;
     }
-    this->tau /= 1.3f;
   }
 
   // Check for oscillation and restart alpha if needed
@@ -657,15 +672,15 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
     maxIncrement = currentVal>maxIncrement?currentVal:maxIncrement;
   }
 
-  // We might want to use that for testing
-  this->currentObjFunctionValue=this->objFunc->GetObjectiveFunctionValue();
-  this->objFunc->UpdateBestObjFunctionValue();
-  this->bestObjFunctionValue=this->currentObjFunctionValue;
-
   // if(maxIncrement<smallLength)
   //   startLength = 0;
   // else 
   // startLength = maxIncrement;
+
+  // We might want to use that for testing
+  this->currentObjFunctionValue=this->objFunc->GetObjectiveFunctionValue();
+  this->objFunc->UpdateBestObjFunctionValue();
+  this->bestObjFunctionValue=this->currentObjFunctionValue;
 
 #ifndef NDEBUG
   reg_print_msg_debug("reg_ForwardBackwardSplit<T>::~reg_ForwardBackwardSplit() called");
@@ -732,11 +747,11 @@ template <class T>
 reg_ForwardBackwardSplitIpiano<T>::reg_ForwardBackwardSplitIpiano()
    :reg_optimiser<T>::reg_optimiser()
 {
-  this->tau = 2000.f;
+  this->tau = 1.f;
   this->previousBestDOF=NULL;
   this->previousBestDOF_b=NULL;
 
-  this->beta = 0.9f;  // inertial weight
+  this->beta = 0.85f;  // inertial weight
   this->eta = 1.2f;    // factor to adaptively decrease step size
   this->c = 1.05f;     // factor to adaptively increase step size
 
@@ -816,6 +831,7 @@ void reg_ForwardBackwardSplitIpiano<T>::Optimise(T maxLength,
   }
 
   const float previousBestCost = this->bestObjFunctionValue;
+  const bool adjustStepSize = 0;
 
   // Monotone backtracking step
   double sum = 0.f;
@@ -845,24 +861,31 @@ void reg_ForwardBackwardSplitIpiano<T>::Optimise(T maxLength,
     this->IncrementCurrentIterationNumber();
 
     // Compute comparison value for backtracking
-    double sum = -previousBestCost;
-    for(i=0; i<this->dofNumber; ++i){
-      sum += (this->currentDOF[i] - this->bestDOF[i]) * (-this->gradient[i]);
-      sum += reg_pow2(this->currentDOF[i] - this->bestDOF[i]) * 0.5f * lipschitzConstant;
-    }
+    if (adjustStepSize){
+      double sum = -previousBestCost;
+      for(i=0; i<this->dofNumber; ++i){
+        sum += (this->currentDOF[i] - this->bestDOF[i]) * (-this->gradient[i]);
+        sum += reg_pow2(this->currentDOF[i] - this->bestDOF[i]) * 0.5f * lipschitzConstant;
+      }
 
-    printf("Iteration %2d: ", while_counter);
-    printf("f(u_kp1) = %g >=? RHS = %g\n", this->currentObjFunctionValue, sum);
-    printf("\tLipschitz constant = %g", lipschitzConstant);
-    printf("\tstep size = %g\n", this->tau);    
-    if(this->currentObjFunctionValue >= sum){
-      std::cout << "done" << std::endl;
+      printf("\tiPiano -- Iteration %2d\n", while_counter);
+      printf("\tiPiano -- f(u_kp1) = %g >=? RHS = %g\n", this->currentObjFunctionValue, sum);
+      printf("\tiPiano -- Lipschitz constant = %g", lipschitzConstant);
+      printf("\tiPiano -- step size = %g\n", this->tau);    
+      
+      if(this->currentObjFunctionValue >= sum){
+        // std::cout << "done" << std::endl;
+        break;
+      }
+      while_counter++;
+
+      // Increase step size
+      lipschitzConstant *= this->eta;
+    }
+    else{
+      printf("\tiPiano -- step size = %g\n", this->tau);    
       break;
     }
-    while_counter++;
-
-    // Increase step size
-    lipschitzConstant *= this->eta;
   }
 
   memcpy(this->previousBestDOF, this->bestDOF, this->dofNumber*sizeof(T));
@@ -883,11 +906,13 @@ void reg_ForwardBackwardSplitIpiano<T>::Optimise(T maxLength,
   //     memcpy(this->previousDOF_b, this->bestDOF_b, this->dofNumber_b*sizeof(T));
   // }
 
-  // Increase step size
-  lipschitzConstant /= this->c;
-  // Update step size based on current Lipschitz constant estimate
-  this->tau = 1.99f * (1.f - this->beta) / lipschitzConstant;
+  if(adjustStepSize){
 
+    // Increase step size
+    lipschitzConstant /= this->c;
+    // Update step size based on current Lipschitz constant estimate
+    this->tau = 1.99f * (1.f - this->beta) / lipschitzConstant;
+  }
   // We might want to use that for testing
   this->currentObjFunctionValue = this->objFunc->GetObjectiveFunctionValue();
   this->objFunc->UpdateBestObjFunctionValue();
@@ -897,7 +922,8 @@ void reg_ForwardBackwardSplitIpiano<T>::Optimise(T maxLength,
   // if(maxIncrement<smallLength/10.){
   //   startLength = 0;
   // }
-  // else startLength = maxIncrement;
+  // else
+  startLength = maxIncrement;
 
 #ifndef NDEBUG
   reg_print_msg_debug("reg_ForwardBackwardSplitIpiano<T>::~reg_ForwardBackwardSplitIpiano() called");

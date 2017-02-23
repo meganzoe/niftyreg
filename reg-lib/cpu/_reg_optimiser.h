@@ -171,6 +171,13 @@ public:
 
    // Function used for testing
    virtual void reg_test_optimiser();
+
+ // HACK to test backtracking line search
+ protected:
+    const int signum(float d) const{
+       return d < -std::numeric_limits<T>::epsilon() ? -1 : d > std::numeric_limits<T>::epsilon();
+    }
+
 };
 /* *************************************************************** */
 /* *************************************************************** */

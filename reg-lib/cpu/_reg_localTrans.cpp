@@ -4776,7 +4776,7 @@ void S_IIR_forback2 (DTYPE r, DTYPE omega, DTYPE *values, size_t number)
    DTYPE err;
    DTYPE a2, a3;
    size_t k;
-   DTYPE precision = 1e-2f;
+   DTYPE precision = 1e-4f;
 
    if (r >= 1.0){
       reg_print_fct_error("S_IIR_forback2");
@@ -5070,11 +5070,10 @@ void reg_spline_Smooth(nifti_image *img,
    float r = (24.*(double)lambda - 1. - tmp2)/(24.*(double)lambda) *
          sqrt(48.*(double)lambda + 24.*(double)lambda*tmp)/tmp2;
 
-   std::cout << lambda << std::endl;
-   std::cout << r << std::endl;
+   // printf("\tlambda = %g\t=>\tr = %g)\n", lambda, r);
 
-   if(lambda<=0.0417f){ // value based on empirical testing.
-   // if(lambda<=1/144.f){ // value based on empirical testing.
+   // if(lambda<=0.0417f){ // value based on empirical testing.
+   if(lambda<=1/144.f){ // value based on empirical testing.
       // 1/144 is usually used but it seems to small for the boundary condition
       reg_print_fct_warn("reg_spline_Smooth");
       reg_print_msg_warn("Lamda value too small. No smoothing is performed");
@@ -5085,8 +5084,9 @@ void reg_spline_Smooth(nifti_image *img,
       img->intent_p1==SPLINE_VEL_GRID){
       reg_getDisplacementFromDeformation(img);
    }
-   // nifti_set_filenames(img, "before_smoothing.nii.gz", 0, 0);
-   // nifti_image_write(img);
+   reg_tools_divideValueToImage(img, img, 5.f);
+   nifti_set_filenames(img, "/tmp/NiftyReg/before_smoothing.nii.gz", 0, 0);
+   nifti_image_write(img);
    switch(img->datatype)
    {
    case NIFTI_TYPE_FLOAT32:
@@ -5100,9 +5100,10 @@ void reg_spline_Smooth(nifti_image *img,
       reg_print_msg_error("Only implemented for single or double precision images");
       reg_exit();
    }
+   reg_tools_multiplyValueToImage(img, img, 5.f);
 
-   // nifti_set_filenames(img, "after_smoothing.nii.gz", 0, 0);
-   // nifti_image_write(img);
+   nifti_set_filenames(img, "/tmp/NiftyReg/after_smoothing.nii.gz", 0, 0);
+   nifti_image_write(img);
 
    if(img->intent_p1==CUB_SPLINE_GRID ||
       img->intent_p1==SPLINE_VEL_GRID){

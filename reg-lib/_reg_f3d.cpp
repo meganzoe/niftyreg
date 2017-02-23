@@ -577,6 +577,10 @@ double reg_f3d<T>::ComputeJacobianBasedPenaltyTerm(int type)
 template <class T>
 double reg_f3d<T>::ComputeBendingEnergyPenaltyTerm()
 {
+   std::cout << "\t\tBENDING ENERGY = " <<
+      reg_spline_approxBendingEnergy(this->controlPointGrid)
+      << std::endl;
+
    if(this->bendingEnergyWeight<=0) return 0.;
 
    double value = reg_spline_approxBendingEnergy(this->controlPointGrid);

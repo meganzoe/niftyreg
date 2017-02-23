@@ -57,11 +57,11 @@ double reg_spline_approxBendingEnergyValue2D(nifti_image *splineControlPoint)
                splineCoeffY = splinePtrY[index];
                XX_x += basisXX[i]*splineCoeffX;
                YY_x += basisYY[i]*splineCoeffX;
-               XY_x += basisXY[i]*splineCoeffX;
+               // XY_x += basisXY[i]*splineCoeffX;
 
                XX_y += basisXX[i]*splineCoeffY;
                YY_y += basisYY[i]*splineCoeffY;
-               XY_y += basisXY[i]*splineCoeffY;
+               // XY_y += basisXY[i]*splineCoeffY;
                ++i;
             }
          }
@@ -130,23 +130,23 @@ double reg_spline_approxBendingEnergyValue3D(nifti_image *splineControlPoint)
                      XX_x += basisXX[i]*splineCoeffX;
                      YY_x += basisYY[i]*splineCoeffX;
                      ZZ_x += basisZZ[i]*splineCoeffX;
-                     XY_x += basisXY[i]*splineCoeffX;
-                     YZ_x += basisYZ[i]*splineCoeffX;
-                     XZ_x += basisXZ[i]*splineCoeffX;
+                     // XY_x += basisXY[i]*splineCoeffX;
+                     // YZ_x += basisYZ[i]*splineCoeffX;
+                     // XZ_x += basisXZ[i]*splineCoeffX;
 
                      XX_y += basisXX[i]*splineCoeffY;
                      YY_y += basisYY[i]*splineCoeffY;
                      ZZ_y += basisZZ[i]*splineCoeffY;
-                     XY_y += basisXY[i]*splineCoeffY;
-                     YZ_y += basisYZ[i]*splineCoeffY;
-                     XZ_y += basisXZ[i]*splineCoeffY;
+                     // XY_y += basisXY[i]*splineCoeffY;
+                     // YZ_y += basisYZ[i]*splineCoeffY;
+                     // XZ_y += basisXZ[i]*splineCoeffY;
 
                      XX_z += basisXX[i]*splineCoeffZ;
                      YY_z += basisYY[i]*splineCoeffZ;
                      ZZ_z += basisZZ[i]*splineCoeffZ;
-                     XY_z += basisXY[i]*splineCoeffZ;
-                     YZ_z += basisYZ[i]*splineCoeffZ;
-                     XZ_z += basisXZ[i]*splineCoeffZ;
+                     // XY_z += basisXY[i]*splineCoeffZ;
+                     // YZ_z += basisYZ[i]*splineCoeffZ;
+                     // XZ_z += basisXZ[i]*splineCoeffZ;
                      ++i;
                   }
                }
@@ -248,11 +248,11 @@ void reg_spline_approxBendingEnergyGradient2D(nifti_image *splineControlPoint,
                   splineCoeffY = splinePtrY[index];
                   XX_x += basisXX[i]*splineCoeffX;
                   YY_x += basisYY[i]*splineCoeffX;
-                  XY_x += basisXY[i]*splineCoeffX;
+                  // XY_x += basisXY[i]*splineCoeffX;
 
                   XX_y += basisXX[i]*splineCoeffY;
                   YY_y += basisYY[i]*splineCoeffY;
-                  XY_y += basisXY[i]*splineCoeffY;
+                  // XY_y += basisXY[i]*splineCoeffY;
                }
                ++i;
             }
@@ -377,23 +377,23 @@ void reg_spline_approxBendingEnergyGradient3D(nifti_image *splineControlPoint,
                         XX_x += basisXX[i]*splineCoeffX;
                         YY_x += basisYY[i]*splineCoeffX;
                         ZZ_x += basisZZ[i]*splineCoeffX;
-                        XY_x += basisXY[i]*splineCoeffX;
-                        YZ_x += basisYZ[i]*splineCoeffX;
-                        XZ_x += basisXZ[i]*splineCoeffX;
+                        // XY_x += basisXY[i]*splineCoeffX;
+                        // YZ_x += basisYZ[i]*splineCoeffX;
+                        // XZ_x += basisXZ[i]*splineCoeffX;
 
                         XX_y += basisXX[i]*splineCoeffY;
                         YY_y += basisYY[i]*splineCoeffY;
                         ZZ_y += basisZZ[i]*splineCoeffY;
-                        XY_y += basisXY[i]*splineCoeffY;
-                        YZ_y += basisYZ[i]*splineCoeffY;
-                        XZ_y += basisXZ[i]*splineCoeffY;
+                        // XY_y += basisXY[i]*splineCoeffY;
+                        // YZ_y += basisYZ[i]*splineCoeffY;
+                        // XZ_y += basisXZ[i]*splineCoeffY;
 
                         XX_z += basisXX[i]*splineCoeffZ;
                         YY_z += basisYY[i]*splineCoeffZ;
                         ZZ_z += basisZZ[i]*splineCoeffZ;
-                        XY_z += basisXY[i]*splineCoeffZ;
-                        YZ_z += basisYZ[i]*splineCoeffZ;
-                        XZ_z += basisXZ[i]*splineCoeffZ;
+                        // XY_z += basisXY[i]*splineCoeffZ;
+                        // YZ_z += basisYZ[i]*splineCoeffZ;
+                        // XZ_z += basisXZ[i]*splineCoeffZ;
                      }
                      ++i;
                   }
