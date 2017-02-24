@@ -1616,7 +1616,7 @@ void reg_base<T>::Run()
             this->GetObjectiveFunctionGradient();
 
             // Normalise the gradient
-            // if(!this->useForwardBackwardSplitOptimiser and !this->useForwardBackwardSplitOptimiserIpiano){
+            // if(!this->useForwardBackwardSplitOptimiser && !this->useForwardBackwardSplitOptimiserIpiano){
                this->NormaliseGradient();
             // }
 

@@ -4776,7 +4776,7 @@ void S_IIR_forback2 (DTYPE r, DTYPE omega, DTYPE *values, size_t number)
    DTYPE err;
    DTYPE a2, a3;
    size_t k;
-   DTYPE precision = 1e-4f;
+   DTYPE precision = 1e-6f;
 
    if (r >= 1.0){
       reg_print_fct_error("S_IIR_forback2");
@@ -5070,6 +5070,7 @@ void reg_spline_Smooth(nifti_image *img,
    float r = (24.*(double)lambda - 1. - tmp2)/(24.*(double)lambda) *
          sqrt(48.*(double)lambda + 24.*(double)lambda*tmp)/tmp2;
 
+   const bool flag_debug = 0;
    // printf("\tlambda = %g\t=>\tr = %g)\n", lambda, r);
 
    // if(lambda<=0.0417f){ // value based on empirical testing.
@@ -5085,8 +5086,12 @@ void reg_spline_Smooth(nifti_image *img,
       reg_getDisplacementFromDeformation(img);
    }
    reg_tools_divideValueToImage(img, img, 5.f);
-   nifti_set_filenames(img, "/tmp/NiftyReg/before_smoothing.nii.gz", 0, 0);
-   nifti_image_write(img);
+
+   if (flag_debug){
+      nifti_set_filenames(img, "/tmp/before_smoothing.nii.gz", 0, 0);
+      nifti_image_write(img);
+   }
+
    switch(img->datatype)
    {
    case NIFTI_TYPE_FLOAT32:
@@ -5102,8 +5107,10 @@ void reg_spline_Smooth(nifti_image *img,
    }
    reg_tools_multiplyValueToImage(img, img, 5.f);
 
-   nifti_set_filenames(img, "/tmp/NiftyReg/after_smoothing.nii.gz", 0, 0);
-   nifti_image_write(img);
+   if (flag_debug){
+      nifti_set_filenames(img, "/tmp/after_smoothing.nii.gz", 0, 0);
+      nifti_image_write(img);
+   }
 
    if(img->intent_p1==CUB_SPLINE_GRID ||
       img->intent_p1==SPLINE_VEL_GRID){

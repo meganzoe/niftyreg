@@ -469,7 +469,7 @@ reg_ForwardBackwardSplit<T>::reg_ForwardBackwardSplit()
    :reg_optimiser<T>::reg_optimiser()
 {
 
-  this->tau = 1000.f;     // step size
+  this->tau = 1.f;     // step size
   this->alpha = 1.f;    // acceleration parameter
   this->previousBestDOF=NULL;
   this->previousBestDOF_b=NULL;
@@ -570,7 +570,7 @@ void reg_ForwardBackwardSplit<T>::Optimise(T maxLength,
   // Non-monotone backtracking step
   double sum = 0.f;
 
-  const bool adjustStepSize = 1;
+  const bool adjustStepSize = 0;
 
   float alpha_kp1;
   float alpha_ratio;
@@ -748,10 +748,10 @@ reg_ForwardBackwardSplitIpiano<T>::reg_ForwardBackwardSplitIpiano()
    :reg_optimiser<T>::reg_optimiser()
 {
   this->tau = 1.f;
-  this->previousBestDOF=NULL;
-  this->previousBestDOF_b=NULL;
+  this->previousBestDOF = NULL;
+  this->previousBestDOF_b = NULL;
 
-  this->beta = 0.85f;  // inertial weight
+  this->beta = 0.95f;  // inertial weight
   this->eta = 1.2f;    // factor to adaptively decrease step size
   this->c = 1.05f;     // factor to adaptively increase step size
 
@@ -804,13 +804,13 @@ void reg_ForwardBackwardSplitIpiano<T>::Initialise(size_t nvox,
                               );
   if(this->previousBestDOF!=NULL) free(this->previousBestDOF);
   this->previousBestDOF=(T *)malloc(this->dofNumber*sizeof(T));
-  memcpy(this->previousBestDOF,this->currentDOF,this->dofNumber*sizeof(T));
+  memcpy(this->previousBestDOF,this->bestDOF,this->dofNumber*sizeof(T));
 
   if(cppData_b!=NULL && gradData_b!=NULL && nvox_b>0)
   {
      if(this->previousBestDOF_b!=NULL) free(this->previousBestDOF_b);
      this->previousBestDOF_b=(T *)malloc(this->dofNumber_b*sizeof(T));
-     memcpy(this->previousBestDOF_b,this->currentDOF_b,this->dofNumber_b*sizeof(T));
+     memcpy(this->previousBestDOF_b,this->bestDOF_b,this->dofNumber_b*sizeof(T));
   }
 }
 /* *************************************************************** */
@@ -820,10 +820,6 @@ void reg_ForwardBackwardSplitIpiano<T>::Optimise(T maxLength,
                                            T smallLength,
                                            T &startLength)
 {
-  // Allocate some required variables and pointers
-  size_t i;
-  size_t dofNumber;
-
   // Start performing the line search
   if(this->currentIterationNumber>this->maxIterationNumber-1){
     startLength = 0;
@@ -834,8 +830,8 @@ void reg_ForwardBackwardSplitIpiano<T>::Optimise(T maxLength,
   const bool adjustStepSize = 0;
 
   // Monotone backtracking step
-  double sum = 0.f;
-  int while_counter=1;
+  // double sum = 0.f;
+  int while_counter = 1;
     
   // Set initial Lipschitz constant estimate
   double lipschitzConstant = 1.99f * (1.f - this->beta) / this->tau;
@@ -844,9 +840,9 @@ void reg_ForwardBackwardSplitIpiano<T>::Optimise(T maxLength,
     this->tau = 1.99f * (1.f - this->beta) / lipschitzConstant;
     
     // Forward step: Part 1 -- gradient descent
-    this->objFunc->UpdateParameters(-this->tau); // this->currentDOF = this->bestDOF - tau * grad
+    this->objFunc->UpdateParameters(-this->tau); // this->currentDOF = this->bestDOF - tau * grad   
     // Forward step: Part 2 -- adding inertia term
-    for (i = 0; i < dofNumber; ++i)
+    for (size_t i = 0; i < this->dofNumber; ++i)
     {
       this->currentDOF[i] += this->beta * (this->bestDOF[i] - this->previousBestDOF[i]);
     }
@@ -860,17 +856,18 @@ void reg_ForwardBackwardSplitIpiano<T>::Optimise(T maxLength,
     // Increment iteration
     this->IncrementCurrentIterationNumber();
 
+    
     // Compute comparison value for backtracking
     if (adjustStepSize){
       double sum = -previousBestCost;
-      for(i=0; i<this->dofNumber; ++i){
+      for(size_t i = 0; i < this->dofNumber; ++i){
         sum += (this->currentDOF[i] - this->bestDOF[i]) * (-this->gradient[i]);
         sum += reg_pow2(this->currentDOF[i] - this->bestDOF[i]) * 0.5f * lipschitzConstant;
       }
 
       printf("\tiPiano -- Iteration %2d\n", while_counter);
-      printf("\tiPiano -- f(u_kp1) = %g >=? RHS = %g\n", this->currentObjFunctionValue, sum);
-      printf("\tiPiano -- Lipschitz constant = %g", lipschitzConstant);
+      // printf("\tiPiano -- Lipschitz constant = %g\n", lipschitzConstant);
+      printf("\tiPiano -- f(u_kp1) = %g >=? RHS = %g", this->currentObjFunctionValue, sum);
       printf("\tiPiano -- step size = %g\n", this->tau);    
       
       if(this->currentObjFunctionValue >= sum){
@@ -883,6 +880,7 @@ void reg_ForwardBackwardSplitIpiano<T>::Optimise(T maxLength,
       lipschitzConstant *= this->eta;
     }
     else{
+      printf("\tiPiano -- Lipschitz constant = %g", lipschitzConstant);
       printf("\tiPiano -- step size = %g\n", this->tau);    
       break;
     }
@@ -890,12 +888,13 @@ void reg_ForwardBackwardSplitIpiano<T>::Optimise(T maxLength,
 
   memcpy(this->previousBestDOF, this->bestDOF, this->dofNumber*sizeof(T));
   memcpy(this->bestDOF, this->currentDOF, this->dofNumber*sizeof(T));
+  
   // if(this->dofNumber_b>0)
   //   memcpy(this->previousSmoothedDOF_b, this->currentDOF_b, this->dofNumber_b*sizeof(T));
 
   // Check for convergence and store the current DOF
   double maxIncrement=0;
-  for(size_t i=0; i<this->dofNumber; ++i){
+  for(size_t i = 0; i < this->dofNumber; ++i){
     T currentVal = (this->bestDOF[i]-this->previousBestDOF[i]);
     maxIncrement = currentVal>maxIncrement?currentVal:maxIncrement;
   }
