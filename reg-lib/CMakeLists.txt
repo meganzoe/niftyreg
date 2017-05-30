@@ -1,4 +1,10 @@
 #-----------------------------------------------------------------------------
+if(USE_CERES)
+  set(NR_CERES_LIBRARIES
+    ceres)
+  link_directories(${CMAKE_BINARY_DIR}/third-party/Ceres/install/lib)
+endif(USE_CERES)
+#-----------------------------------------------------------------------------
 if(USE_CUDA)
   add_subdirectory(cuda)
   set(NR_CUDA_LIBRARIES
@@ -9,7 +15,8 @@ endif(USE_CUDA)
 #-----------------------------------------------------------------------------
 if(USE_OPENCL)
   add_subdirectory(cl)
-  set(NR_OPENCL_LIBRARIES _reg_opencl_kernels)
+  set(NR_OPENCL_LIBRARIES
+    _reg_opencl_kernels)
 endif(USE_OPENCL)
 #-----------------------------------------------------------------------------
 ##BUILD THE CPU LIBRARIES
@@ -18,6 +25,9 @@ add_library(_reg_maths ${NIFTYREG_LIBRARY_TYPE}
   cpu/_reg_maths.cpp
   cpu/_reg_maths_eigen.cpp
 )
+if(USE_CERES)
+  add_dependencies(_reg_maths Ceres)
+endif(USE_CERES)
 install(TARGETS _reg_maths
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
