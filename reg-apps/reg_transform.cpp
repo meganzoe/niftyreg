@@ -30,6 +30,7 @@ typedef struct
    char *referenceImage2Name;
    char *inputTransName;
    char *input2TransName;
+   char *input3TransName;
    char *inputLandmarkName;
    float affTransParam[12];
    char *outputTransName;
@@ -41,7 +42,9 @@ typedef struct
    bool outputDefFlag;
    bool outputDispFlag;
    bool outputFlowFlag;
+   bool outputFlowDispFlag;
    bool outputCompFlag;
+   bool outputCompVelFlag;
    bool outputLandFlag;
    bool updSFormFlag;
    bool halfTransFlag;
@@ -82,7 +85,12 @@ void Usage(char *exec)
    printf("\t\tfilename2 - Output displacement field file name\n\n");
 
    printf("\t-flow <filename1> <filename2>\n");
-   printf("\t\tTake a spline parametrised SVF and compute the corresponding flow field\n");
+   printf("\t\tTake a spline parametrised SVF and compute the corresponding deformation flow field\n");
+   printf("\t\tfilename1 - Input transformation file name\n");
+   printf("\t\tfilename2 - Output flow field file name\n\n");
+
+   printf("\t-flow_disp <filename1> <filename2>\n");
+   printf("\t\tTake a spline parametrised SVF or a deformation flow field and compute the corresponding displacement flow field\n");
    printf("\t\tfilename1 - Input transformation file name\n");
    printf("\t\tfilename2 - Output flow field file name\n\n");
 
@@ -92,6 +100,14 @@ void Usage(char *exec)
    printf("\t\tfilename1 - Input transformation 1 file name (associated with -ref if required)\n");
    printf("\t\tfilename2 - Input transformation 2 file name (associated with -ref2 if required)\n");
    printf("\t\tfilename3 - Output deformation field file name\n\n");
+
+   printf("\t-trans_vel <filename1> <filename2> <filename3> <filename4>\n");
+   printf("\t\t Transform a velocity field into an reference space according to transformation 1 (returns a displacment velocity field)\n");
+   printf("\t\tTrans4(x) = Trans1^(-1)(Trans2(Trans1(x))).\n");
+   printf("\t\tfilename1 - Input transformation 1 file name (associated with -ref if required)\n");
+   printf("\t\tfilename2 - Input transformation 2 file name (associated with -ref2 if required)\n");
+   printf("\t\tfilename3 - Input *INVERSE* of transformation 1 file name (associated with -ref2 if required)\n");
+   printf("\t\tfilename4 - Output displacement velocity field file name\n\n");
 
    printf("\t-land <filename1> <filename2> <filename3>\n");
    printf("\t\tApply a transformation to a set of landmark(s).\n");
@@ -244,6 +260,12 @@ int main(int argc, char **argv)
          param->inputTransName=argv[++i];
          param->outputTransName=argv[++i];
       }
+	  else if(strcmp(argv[i], "-flow_disp") == 0 || strcmp(argv[i], "--flow_disp") == 0)
+	  {
+		  flag->outputFlowDispFlag=true;
+		  param->inputTransName=argv[++i];
+		  param->outputTransName=argv[++i];
+	  }
       else if(strcmp(argv[i],"-comp")==0 || strcmp(argv[i],"--comp")==0)
       {
          flag->outputCompFlag=true;
@@ -251,6 +273,14 @@ int main(int argc, char **argv)
          param->input2TransName=argv[++i];
          param->outputTransName=argv[++i];
       }
+	  else if (strcmp(argv[i], "-trans_vel") == 0 || strcmp(argv[i], "--trans_vel") == 0)
+	  {
+		  flag->outputCompVelFlag = true;
+		  param->inputTransName = argv[++i];
+		  param->input2TransName = argv[++i];
+		  param->input3TransName = argv[++i];
+		  param->outputTransName = argv[++i];
+	  }
       else if(strcmp(argv[i],"-land")==0 || strcmp(argv[i],"--land")==0)
       {
          flag->outputLandFlag=true;
@@ -318,7 +348,7 @@ int main(int argc, char **argv)
    /* ********************************************** */
    // Generate the deformation or displacement field //
    /* ********************************************** */
-   if(flag->outputDefFlag || flag->outputDispFlag || flag->outputFlowFlag)
+   if(flag->outputDefFlag || flag->outputDispFlag || flag->outputFlowFlag || flag->outputFlowDispFlag)
    {
       // Create some variables
       mat44 *affineTransformation=NULL;
@@ -407,7 +437,7 @@ int main(int argc, char **argv)
       outputTransformationImage->data=(void *)malloc
                                       (outputTransformationImage->nvox*outputTransformationImage->nbyper);
       // Create a flow field image
-      if(flag->outputFlowFlag)
+      if(flag->outputFlowFlag || flag->outputFlowDispFlag)
       {
          if(affineTransformation!=NULL)
          {
@@ -450,7 +480,8 @@ int main(int argc, char **argv)
             // The current input transformation is copied and converted
             memcpy(outputTransformationImage->data,inputTransformationImage->data,
                    outputTransformationImage->nvox*outputTransformationImage->nbyper);
-            reg_getDisplacementFromDeformation(outputTransformationImage);
+            // reg_getDisplacementFromDeformation(outputTransformationImage);
+			reg_getDeformationFromDisplacement(outputTransformationImage);
             break;
          case SPLINE_VEL_GRID:
             printf("[NiftyReg] The specified transformation is a spline velocity parametrisation:\n[NiftyReg] %s\n",
@@ -462,8 +493,13 @@ int main(int argc, char **argv)
             fprintf(stderr,"[NiftyReg ERROR] Unknown input transformation type\n");
             return EXIT_FAILURE;
          }
-         outputTransformationImage->intent_p1=DEF_VEL_FIELD;
-         outputTransformationImage->intent_p2=inputTransformationImage->intent_p2;
+		 
+		 outputTransformationImage->intent_p1 = DEF_VEL_FIELD;
+		 outputTransformationImage->intent_p2 = inputTransformationImage->intent_p2;
+		 if (flag->outputFlowDispFlag){
+			 reg_getDisplacementFromDeformation(outputTransformationImage);
+		 }
+		 
       }
       // Create a deformation or displacement field
       else if(flag->outputDefFlag || flag->outputDispFlag)
@@ -560,9 +596,14 @@ int main(int argc, char **argv)
                 param->outputTransName);
          break;
       case DEF_VEL_FIELD:
-         printf("[NiftyReg] The flow field has been saved as:\n[NiftyReg] %s\n",
+         printf("[NiftyReg] The deformation flow field has been saved as:\n[NiftyReg] %s\n",
                 param->outputTransName);
          break;
+	  case DISP_VEL_FIELD:
+		  printf("[NiftyReg] The displacement flow field has been saved as:\n[NiftyReg] %s\n",
+			  param->outputTransName);
+		  break;
+
       }
       // Free the allocated images and arrays
       if(affineTransformation!=NULL) free(affineTransformation);
@@ -896,6 +937,386 @@ int main(int argc, char **argv)
       if(output2TransImage!=NULL) nifti_image_free(output2TransImage);
    }
 
+   /* ********************************** */
+   // Warp a velocity field according to a transformation R //
+   /* ********************************** */
+   if (flag->outputCompVelFlag)
+   {
+	   printf("[NiftyReg] Starting the transformation of velocity field\n");
+		fflush(stdout);
+	   // Create some variables
+	   nifti_image *referenceImage = NULL;
+	   nifti_image *referenceImage2 = NULL;
+	   nifti_image *input1TransImage = NULL;
+	   nifti_image *input2TransImage = NULL;
+	   nifti_image *input3TransImage = NULL;
+	   nifti_image *output3TransImage = NULL;
+	   nifti_image *output1TransImage = NULL;
+	   nifti_image *output2TransImage = NULL;
+	   // Read the first transformation
+	   input1TransImage = reg_io_ReadImageFile(param->inputTransName);
+	   if (input1TransImage == NULL)
+	   {
+			fprintf(stderr, "[NiftyReg ERROR] Error when reading the transformation image: %s\n",
+				param->inputTransName);
+			return EXIT_FAILURE;
+	   }
+	   // Read the second transformation
+	   input2TransImage = reg_io_ReadImageFile(param->input2TransName);
+	   if (input2TransImage == NULL)
+	   {
+		   fprintf(stderr, "[NiftyReg ERROR] Error when reading the transformation image: %s\n",
+					   param->input2TransName);
+		   return EXIT_FAILURE;
+	   }
+	   // Read the third transformation
+	   input3TransImage = reg_io_ReadImageFile(param->input3TransName);
+		printf("[NiftyReg] reading the transformation image: %s\n",
+			param->input3TransName);
+		fflush(stdout);
+	   if (input3TransImage == NULL)
+	   {
+			fprintf(stderr, "[NiftyReg ERROR] Error when reading the transformation image: %s\n",
+				param->input3TransName);
+			fflush(stdout);
+			return EXIT_FAILURE;
+       }
+		else
+		{
+			printf("[NiftyReg] Transform 3 intent %f\n",
+				input3TransImage->intent_p1);
+			fflush(stdout);
+		}
+		if (input1TransImage->intent_p1 == LIN_SPLINE_GRID ||
+			input1TransImage->intent_p1 == CUB_SPLINE_GRID ||
+			input1TransImage->intent_p1 == SPLINE_VEL_GRID)
+		{
+			if (!flag->referenceImageFlag)
+			{
+				fprintf(stderr, "[NiftyReg ERROR] When using an cubic b-spline parametrisation (%s),",
+					param->inputTransName);
+				fprintf(stderr, " a reference image shoud be specified (-ref flag).\n");
+				return EXIT_FAILURE;
+			}
+			referenceImage = reg_io_ReadImageHeader(param->referenceImageName);
+			if (referenceImage == NULL)
+			{
+				fprintf(stderr, "[NiftyReg ERROR] Error when reading the reference image: %s\n",
+					param->referenceImageName);
+				return EXIT_FAILURE;
+			}
+		}
+		// Read the second reference image if specified
+		if (flag->referenceImage2Flag == true)
+		{
+			referenceImage2 = reg_io_ReadImageHeader(param->referenceImage2Name);
+			if (referenceImage2 == NULL)
+			{
+				fprintf(stderr, "[NiftyReg ERROR] Error when reading the second reference image: %s\n",
+					param->referenceImage2Name);
+				return EXIT_FAILURE;
+			}
+		}
+		// Generate the first deformation field
+		if (referenceImage != NULL)
+		{
+			// The field is created using the reference image space
+			output1TransImage = nifti_copy_nim_info(referenceImage);
+			output1TransImage->ndim = output1TransImage->dim[0] = 5;
+			output1TransImage->nt = output1TransImage->dim[4] = 1;
+			output1TransImage->nu = output1TransImage->dim[5] = output1TransImage->nz>1 ? 3 : 2;
+			output1TransImage->nvox = (size_t)output1TransImage->nx *
+				output1TransImage->ny * output1TransImage->nz *
+				output1TransImage->nt * output1TransImage->nu;
+			output1TransImage->scl_slope = 1.f;
+			output1TransImage->scl_inter = 0.f;
+			if (referenceImage->datatype != NIFTI_TYPE_FLOAT32)
+			{
+				output1TransImage->nbyper = sizeof(float);
+				output1TransImage->datatype = NIFTI_TYPE_FLOAT32;
+			}
+			printf("[NiftyReg] Transformation 1 is defined in the space of image:\n[NiftyReg] %s\n",
+				referenceImage->fname);
+		}
+		else
+		{
+			// The field is created using the input transformation image space
+			output1TransImage = nifti_copy_nim_info(input1TransImage);
+		}
+		output1TransImage->intent_code = NIFTI_INTENT_VECTOR;
+		memset(output1TransImage->intent_name, 0, 16);
+		strcpy(output1TransImage->intent_name, "NREG_TRANS");
+		output1TransImage->intent_p1 = DEF_FIELD;
+		output1TransImage->data = (void *)calloc
+			(output1TransImage->nvox, output1TransImage->nbyper);
+
+		switch (reg_round(input1TransImage->intent_p1))
+		{
+		case LIN_SPLINE_GRID:
+		case CUB_SPLINE_GRID:
+			printf("[NiftyReg] Transformation 1 is a spline parametrisation:\n[NiftyReg] %s\n",
+				input1TransImage->fname);
+			// The deformation field is filled with zeros
+			reg_tools_multiplyValueToImage(output1TransImage, output1TransImage, 0.f);
+			output1TransImage->intent_p1 = DISP_FIELD;
+			// an identity transformation is created 
+			reg_getDeformationFromDisplacement(output1TransImage);
+			reg_spline_getDeformationField(input1TransImage,
+				output1TransImage,
+				NULL,
+				true,
+				true);
+			break;
+		case DEF_FIELD:
+			printf("[NiftyReg] Transformation 1 is a deformation field:\n[NiftyReg] %s\n",
+				input1TransImage->fname);
+			memcpy(output1TransImage->data, input1TransImage->data,
+				output1TransImage->nbyper*output1TransImage->nvox);
+			break;
+		case DISP_FIELD:
+			printf("[NiftyReg] Transformation 1 is a displacement field:\n[NiftyReg] %s\n",
+				input1TransImage->fname);
+			memcpy(output1TransImage->data, input1TransImage->data,
+				output1TransImage->nbyper*output1TransImage->nvox);
+			reg_getDeformationFromDisplacement(output1TransImage);
+			break;
+		case SPLINE_VEL_GRID:
+			printf("[NiftyReg] Transformation 1 is a spline velocity field parametrisation:\n[NiftyReg] %s\n",
+				input1TransImage->fname);
+			fflush(stdout);
+			reg_spline_getDefFieldFromVelocityGrid(input1TransImage,
+				output1TransImage,
+				false // the number of step is not automatically updated
+				);
+			break;
+		case DEF_VEL_FIELD:
+			printf("[NiftyReg] Transformation 1 is a deformation field velocity:\n[NiftyReg] %s\n",
+				input1TransImage->fname);
+			reg_defField_getDeformationFieldFromFlowField(input1TransImage,
+				output1TransImage,
+				false // the number of step is not automatically updated
+				);
+			break;
+		case DISP_VEL_FIELD:
+			printf("[NiftyReg] Transformation 1 is a displacement field velocity:\n[NiftyReg] %s\n",
+				input1TransImage->fname);
+			reg_getDeformationFromDisplacement(output1TransImage);
+			reg_defField_getDeformationFieldFromFlowField(input1TransImage,
+				output1TransImage,
+				false // the number of step is not automatically updated
+				);
+			break;
+		default:
+			fprintf(stderr, "[NiftyReg ERROR] The specified first input transformation type is not recognised: %s\n",
+				param->input2TransName);
+			return EXIT_FAILURE;
+		}
+
+		switch (reg_round(input2TransImage->intent_p1))
+		{
+		case LIN_SPLINE_GRID:
+		case CUB_SPLINE_GRID:
+			printf("[NiftyReg] Transformation 2 is a spline parametrisation:\n[NiftyReg] %s\n",
+				input2TransImage->fname);
+			reg_spline_getDeformationField(input2TransImage,
+				output1TransImage,
+				NULL,
+				true, // composition
+				true // b-spline
+				);
+			break;
+		case DEF_FIELD:
+			printf("[NiftyReg] Transformation 2 is a deformation field:\n[NiftyReg] %s\n",
+				input2TransImage->fname);
+			reg_defField_compose(input2TransImage, output1TransImage, NULL);
+			break;
+		case DISP_FIELD:
+			printf("[NiftyReg] Transformation 2 is a displacement field:\n[NiftyReg] %s\n",
+				input2TransImage->fname);
+			reg_getDeformationFromDisplacement(input2TransImage);
+			reg_defField_compose(input2TransImage, output1TransImage, NULL);
+			break;
+		case SPLINE_VEL_GRID:
+			// The field is created using the second reference image space
+			if (referenceImage2 != NULL)
+			{
+				output2TransImage = nifti_copy_nim_info(referenceImage2);
+				output2TransImage->scl_slope = 1.f;
+				output2TransImage->scl_inter = 0.f;
+				printf("[NiftyReg] Transformation 2 is defined in the space of image:\n[NiftyReg] %s\n",
+					referenceImage2->fname);
+				fflush(stdout);
+			}
+			else
+			{
+				output2TransImage = nifti_copy_nim_info(output1TransImage);
+			}
+			output2TransImage->ndim = output2TransImage->dim[0] = 5;
+			output2TransImage->nt = output2TransImage->dim[4] = 1;
+			output2TransImage->nu = output2TransImage->dim[5] = output2TransImage->nz>1 ? 3 : 2;
+			output2TransImage->nvox = (size_t)output2TransImage->nx *
+				output2TransImage->ny * output2TransImage->nz *
+				output2TransImage->nt * output2TransImage->nu;
+			output2TransImage->nbyper = output1TransImage->nbyper;
+			output2TransImage->datatype = output1TransImage->datatype;
+			output2TransImage->data = (void *)calloc
+				(output2TransImage->nvox, output2TransImage->nbyper);
+			printf("[NiftyReg] Transformation 2 is a spline velocity field parametrisation:\n[NiftyReg] %s\n",
+				input2TransImage->fname);
+			fflush(stdout);
+			// Create an image to store the flow field			
+			output2TransImage->intent_code = NIFTI_INTENT_VECTOR;
+			memset(output2TransImage->intent_name, 0, 16);
+			strcpy(output2TransImage->intent_name, "NREG_TRANS");
+			output2TransImage->intent_p1 = DEF_VEL_FIELD;
+			output2TransImage->intent_p2 = input2TransImage->intent_p2;
+			if (input2TransImage->num_ext>0)
+				nifti_copy_extensions(output2TransImage, input2TransImage);
+			// Generate the velocity field
+			reg_spline_getFlowFieldFromVelocityGrid(input2TransImage,
+				output2TransImage);
+			printf("[NiftyReg] Transformation 2 generated velocity field\n");
+			fflush(stdout);
+			reg_defField_compose(output2TransImage, output1TransImage, NULL);
+			printf("[NiftyReg] Transformation 2 composed velocity field\n");
+			fflush(stdout);
+			printf("[NiftyReg] Onto transformation 3...\n %f\n", input3TransImage->intent_p1);
+			fflush(stdout);
+			break;
+		case DEF_VEL_FIELD:
+			printf("[NiftyReg] Transformation 2 is a deformation field velocity:\n[NiftyReg] %s\n",
+				input2TransImage->fname);
+			reg_defField_compose(input2TransImage, output1TransImage, NULL);
+			break;
+		case DISP_VEL_FIELD:
+			printf("[NiftyReg] Transformation 2 is a displacement field velocity:\n[NiftyReg] %s\n",
+				input2TransImage->fname);
+			reg_getDeformationFromDisplacement(input2TransImage);
+			reg_defField_compose(input2TransImage, output1TransImage, NULL);
+			break;
+		default:
+			fprintf(stderr, "[NiftyReg ERROR] The specified second input transformation type is not recognised: %s\n",
+				param->input2TransName);
+			return EXIT_FAILURE;
+		}
+
+		// Now compose with the final transformation
+		// must end with reg_defField_compose(output3TransImage, output1TransImage, NULL);
+		printf("[NiftyReg] Onto transformation 3 part 2...\n %f\n", input3TransImage->intent_p1);
+		fflush(stdout);
+		switch (reg_round(input3TransImage->intent_p1))
+		{
+		case LIN_SPLINE_GRID:
+		case CUB_SPLINE_GRID:
+			printf("[NiftyReg] Transformation 3 is a spline parametrisation:\n[NiftyReg] %s\n",
+				input3TransImage->fname);
+			reg_spline_getDeformationField(input3TransImage,
+				output1TransImage,
+				NULL,
+				true, // composition
+				true // b-spline
+				);
+			break;
+		case DEF_FIELD:
+			printf("[NiftyReg] Transformation 3 is a deformation field:\n[NiftyReg] %s\n",
+				input3TransImage->fname);
+			reg_defField_compose(input3TransImage, output1TransImage, NULL);
+			break;
+		case DISP_FIELD:
+			printf("[NiftyReg] Transformation 3 is a displacement field:\n[NiftyReg] %s\n",
+				input3TransImage->fname);
+			reg_getDeformationFromDisplacement(input3TransImage);
+			reg_defField_compose(input3TransImage, output1TransImage, NULL);
+			break;
+		case SPLINE_VEL_GRID:
+			// The field is created using the second reference image space
+			if (referenceImage2 != NULL)
+			{
+				printf("[NiftyReg] Found reference image 2\n");
+				fflush(stdout);
+				output3TransImage = nifti_copy_nim_info(referenceImage2);
+				output3TransImage->scl_slope = 1.f;
+				output3TransImage->scl_inter = 0.f;
+				printf("[NiftyReg] Transformation 3 is defined in the space of image:\n[NiftyReg] %s\n",
+					referenceImage2->fname);
+				fflush(stdout);
+			}
+			else
+			{
+				output3TransImage = nifti_copy_nim_info(output1TransImage);
+			}
+			output3TransImage->ndim = output3TransImage->dim[0] = 5;
+			output3TransImage->nt = output3TransImage->dim[4] = 1;
+			output3TransImage->nu = output3TransImage->dim[5] = output3TransImage->nz > 1 ? 3 : 2;
+			output3TransImage->nvox = (size_t)output3TransImage->nx *
+				output3TransImage->ny * output3TransImage->nz *
+				output3TransImage->nt * output3TransImage->nu;
+			output3TransImage->nbyper = output1TransImage->nbyper;
+			output3TransImage->datatype = output1TransImage->datatype;
+			output3TransImage->data = (void *)calloc
+				(output3TransImage->nvox, output3TransImage->nbyper);
+			printf("[NiftyReg] Transformation 3 is a spline velocity field parametrisation:\n[NiftyReg] %s\n",
+				input3TransImage->fname);
+			fflush(stdout);
+			reg_spline_getDefFieldFromVelocityGrid(input3TransImage,
+				output3TransImage,
+				false // the number of step is not automatically updated
+				);
+			reg_defField_compose(output3TransImage, output1TransImage, NULL);
+			break;
+		case DEF_VEL_FIELD:
+			printf("[NiftyReg] Transformation 3 is a deformation field velocity:\n[NiftyReg] %s\n",
+				input3TransImage->fname);
+			output3TransImage = nifti_copy_nim_info(input2TransImage);
+			output3TransImage->intent_p1 = DEF_FIELD;
+			output3TransImage->data = (void *)calloc
+				(output3TransImage->nvox, output3TransImage->nbyper);
+			reg_defField_getDeformationFieldFromFlowField(input3TransImage,
+				output3TransImage,
+				false // the number of step is not automatically updated
+				);
+			reg_defField_compose(output3TransImage, output1TransImage, NULL);
+			break;
+		case DISP_VEL_FIELD:
+			printf("[NiftyReg] Transformation 3 is a displacement field velocity:\n[NiftyReg] %s\n",
+				input3TransImage->fname);
+			output3TransImage = nifti_copy_nim_info(input3TransImage);
+			output3TransImage->intent_p1 = DEF_FIELD;
+			output3TransImage->data = (void *)calloc
+				(output3TransImage->nvox, output2TransImage->nbyper);
+			reg_getDeformationFromDisplacement(input3TransImage);
+			reg_defField_getDeformationFieldFromFlowField(input3TransImage,
+				output3TransImage,
+				false // the number of step is not automatically updated
+				);
+			reg_defField_compose(output3TransImage, output1TransImage, NULL);
+			break;
+		default:
+			fprintf(stderr, "[NiftyReg ERROR] The specified second input transformation type is not recognised: %s\n",
+				param->input2TransName);
+			fflush(stdout);
+			return EXIT_FAILURE;
+		}
+		// Save the composed transformation
+		memset(output1TransImage->descrip, 0, 80);
+		strcpy(output1TransImage->descrip, "Velocity field from NiftyReg (reg_transform -trans_vel)");
+		output1TransImage->intent_p1 = DEF_VEL_FIELD;
+		reg_getDisplacementFromDeformation(output1TransImage);
+		output1TransImage->intent_p1 = DISP_VEL_FIELD;
+		reg_io_WriteImageFile(output1TransImage, param->outputTransName);
+		printf("[NiftyReg] The final deformation flow field has been saved as:\n[NiftyReg] %s\n",
+			param->outputTransName);
+	   
+	   // Free allocated object
+	   if (referenceImage != NULL) nifti_image_free(referenceImage);
+	   if (referenceImage2 != NULL) nifti_image_free(referenceImage2);
+	   if (input1TransImage != NULL) nifti_image_free(input1TransImage);
+	   if (input2TransImage != NULL) nifti_image_free(input2TransImage);
+		if (input3TransImage != NULL) nifti_image_free(input3TransImage);
+	   if (output1TransImage != NULL) nifti_image_free(output1TransImage);
+	   if (output2TransImage != NULL) nifti_image_free(output2TransImage);
+		if (output3TransImage != NULL) nifti_image_free(output3TransImage);
+   }
 
    /* ********************************** */
    // Update the landmark transformation //
